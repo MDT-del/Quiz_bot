@@ -23,7 +23,12 @@ class Config:
 
     # تنظیمات دیتابیس
     # مسیر فایل دیتابیس SQLite
-    DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'quiz.db')
+    # DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'quiz.db')
+    # تنظیمات جدید دیتابیس MySQL
+    MYSQL_HOST = '127.0.0.1'
+    MYSQL_USER = 'root'
+    MYSQL_PASSWORD = 'H!dden686973'
+    MYSQL_DB = 'quiz' # نام دیتابیسی که ساختیم
     MAX_QUESTIONS = 100  # حداکثر تعداد سوالات در هر آزمون برای ربات
 
     # تنظیمات پنل مدیریت وب (Flask)

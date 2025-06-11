@@ -6,3 +6,4 @@ werkzeug==2.3.8
 jdatetime
 zarinpal-payment==0.0.7
 django-zarinpal
+mysql-connector-python

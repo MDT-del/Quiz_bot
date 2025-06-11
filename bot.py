@@ -3,7 +3,7 @@ from telebot import types
 import sqlite3
 from database import (add_user, get_questions, save_test_result,
                       get_user_stats, get_last_test_time,
-                      get_questions_by_skill, get_question_by_id,
+                      get_questions_by_skill_and_level, get_question_by_id,
                       get_top_users, save_support_message,
                       get_support_message_by_id, get_comprehensive_questions,
                       save_quiz_state, get_quiz_state, delete_quiz_state,

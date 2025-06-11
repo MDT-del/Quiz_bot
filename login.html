@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>ورود به پنل مدیریت</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/sahel-font@v3.4.0/dist/font-face.css" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Sahel', sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            background-color: #f4f7f6; 
+            color: #333; 
+            margin: 0;
+            padding: 20px; /* اضافه کردن پدینگ برای صفحات کوچک */
+            box-sizing: border-box;
+        }
+        .login-container {
+            background: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .login-container h1 { 
+            margin-top: 0;
+            margin-bottom: 30px; 
+            color: #4e73df; 
+        }
+        .form-group { 
+            margin-bottom: 20px; 
+            text-align: right; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: bold; 
+            color: #555; 
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%; /* تغییر عرض به ۱۰۰ درصد */
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        button {
+            background: #4e73df;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: background-color 0.3s ease;
+            width: 100%;
+        }
+        button:hover { background-color: #2e59d9; }
+
+        .alert-success { background: #d4edda; color: #155724; padding: 12px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #c3e6cb; }
+        .alert-danger { background: #f8d7da; color: #721c24; padding: 12px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #f5c6cb; }
+        .alert-info { background: #d1ecf1; color: #0c5460; padding: 12px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #bee5eb; }
+
+        /* استایل برای موبایل */
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 25px;
+            }
+            .login-container h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>ورود به پنل مدیریت</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="post" action="/login">
+            <div class="form-group">
+                <label for="username">نام کاربری:</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">رمز عبور:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit">ورود</button>
+        </form>
+    </div>
+</body>
+</html>

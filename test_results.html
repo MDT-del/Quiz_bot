@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}نتایج آزمون{% endblock %}
+{% block page_title %}نتایج آزمون کاربران{% endblock %}
+
+{% block styles %}
+<style>
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #eee; padding: 12px 15px; text-align: right; white-space: nowrap; }
+    th { background-color: #f2f2f2; }
+    .delete-btn { padding: 6px 12px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if results %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr><th>شناسه آزمون</th><th>نام کاربر</th><th>امتیاز</th><th>سطح/مهارت</th><th>تاریخ آزمون</th><th>عملیات</th></tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                <tr>
+                    <td>{{ result.test_id }}</td>
+                    <td>{{ result.first_name }} {{ result.last_name }} (@{{ result.username }})</td>
+                    <td>{{ result.score }}</td>
+                    <td>{{ result.level }}</td>
+                    <td>{{ result.test_date_shamsi if result.test_date_shamsi else 'N/A' }}</td>
+                    <td>
+                        <form action="{{ url_for('delete_test_result_route', test_id=result.test_id) }}" method="post" onsubmit="return confirm('آیا از حذف این نتیجه آزمون اطمینان دارید؟');">
+                            <button type="submit" class="delete-btn">حذف</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p>هنوز هیچ نتیجه آزمونی ثبت نشده است.</p>
+{% endif %}
+{% endblock %}

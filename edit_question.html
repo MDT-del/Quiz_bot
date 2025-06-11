@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>ویرایش سوال - پنل ادمین</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/sahel-font@v3.4.0/dist/font-face.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.rtl.min.css">
+    <style>
+        body {
+            font-family: 'Sahel', sans-serif;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            margin-top: 30px;
+            margin-bottom: 50px;
+        }
+        .form-container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .form-label {
+            font-weight: bold;
+        }
+        .media-preview img, .media-preview video, .media-preview audio {
+             display: block;
+             max-width: 100%;
+             height: auto;
+             border-radius: 5px;
+             margin-top: 10px;
+         }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-container">
+            <h2 class="text-center mb-4 text-primary">ویرایش سوال #{{ question.id }}</h2>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="post" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="question_text" class="form-label">متن سوال:</label>
+                    <textarea class="form-control" id="question_text" name="question_text" rows="4" required>{{ question.question_text }}</textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">گزینه‌ها:</label>
+                    <div id="options-container">
+                        {% for i in range(question.options|length) %}
+                        <div class="input-group mb-2">
+                            <span class="input-group-text">{{ i + 1 }}</span>
+                            <input type="text" name="option{{ i }}" class="form-control" value="{{ question.options[i] }}" required>
+                            <div class="input-group-text">
+                                <input class="form-check-input mt-0" type="radio" value="{{ i }}" name="correct_answer" {% if i == question.correct_answer %}checked{% endif %} required>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" name="option_count" id="option_count" value="{{ question.options|length }}">
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addOption()">افزودن گزینه جدید</button>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="skill" class="form-label">مهارت:</label>
+                        <select id="skill" name="skill" class="form-select" required>
+                            {% for skill in quiz_skills %}
+                                <option value="{{ skill }}" {% if skill == question.skill %}selected{% endif %}>{{ skill }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="level" class="form-label">سطح سوال:</label>
+                        <select id="level" name="level" class="form-select" required>
+                            {% for level in quiz_levels %}
+                                <option value="{{ level }}" {% if level == question.level %}selected{% endif %}>{{ level }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="question_type" class="form-label">مورد استفاده در آزمون:</label>
+                    <select id="question_type" name="question_type" class="form-select" required>
+                         <option value="جامع" {% if question.question_type == 'جامع' %}selected{% endif %}>آزمون جامع</option>
+                         <option value="مهارتی" {% if question.question_type == 'مهارتی' %}selected{% endif %}>آزمون مهارتی</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">فایل چندرسانه‌ای:</label>
+                    {% if question.media_path %}
+                    <div class="media-preview">
+                        <p><strong>رسانه فعلی:</strong></p>
+                        {% if question.media_type == 'image' %}
+                            <img src="{{ question.media_path }}" alt="تصویر فعلی">
+                        {% elif question.media_type == 'video' %}
+                            <video src="{{ question.media_path }}" controls width="320"></video>
+                        {% elif question.media_type == 'audio' %}
+                            <audio src="{{ question.media_path }}" controls></audio>
+                        {% endif %}
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="delete_current_media" id="delete_current_media">
+                            <label class="form-check-label" for="delete_current_media">حذف رسانه فعلی</label>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <label for="new_media_file" class="form-label mt-2">آپلود فایل جدید:</label>
+                    <input type="file" id="new_media_file" name="new_media_file" class="form-control">
+                </div>
+
+                <hr>
+                <button type="submit" class="btn btn-primary w-100">بروزرسانی سوال</button>
+                <a href="{{ url_for('manage_questions') }}" class="btn btn-light w-100 mt-2">بازگشت</a>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function addOption() {
+            const container = document.getElementById('options-container');
+            const optionCountInput = document.getElementById('option_count');
+            let newIndex = parseInt(optionCountInput.value);
+
+            const newOptionDiv = document.createElement('div');
+            newOptionDiv.className = 'input-group mb-2';
+            newOptionDiv.innerHTML = `
+                <span class="input-group-text">${newIndex + 1}</span>
+                <input type="text" name="option${newIndex}" class="form-control" placeholder="متن گزینه ${newIndex + 1}" required>
+                <div class="input-group-text">
+                    <input class="form-check-input mt-0" type="radio" value="${newIndex}" name="correct_answer">
+                </div>
+            `;
+            container.appendChild(newOptionDiv);
+            optionCountInput.value = newIndex + 1;
+        }
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const questionTypeSelect = document.getElementById('question_type');
+            const levelSelect = document.getElementById('level');
+            const levelGroup = levelSelect.parentElement; // پیدا کردن تگ والد که شامل لیبل هم می‌شود
+
+            function toggleLevelField() {
+                // اگر نوع آزمون "جامع" انتخاب شده بود
+                if (questionTypeSelect.value === 'جامع') {
+                    // فیلد سطح را مخفی و غیرضروری کن
+                    levelGroup.style.display = 'none';
+                    levelSelect.required = false;
+                } else {
+                    // در غیر این صورت (برای آزمون مهارتی)، آن را نمایش بده و اجباری کن
+                    levelGroup.style.display = 'block';
+                    levelSelect.required = true;
+                }
+            }
+
+            // اجرای تابع در هنگام بارگذاری اولیه صفحه
+            toggleLevelField();
+            // اجرای تابع با هر بار تغییر در انتخاب نوع سوال
+            questionTypeSelect.addEventListener('change', toggleLevelField);
+        });
+
+        // این تابع برای افزودن دینامیک گزینه‌هاست و بدون تغییر باقی می‌ماند
+        function addOption() {
+            const container = document.getElementById('options-container');
+            const optionCountInput = document.getElementById('option_count');
+            let newIndex = parseInt(optionCountInput.value);
+            const newOptionDiv = document.createElement('div');
+            newOptionDiv.className = 'input-group mb-2';
+            newOptionDiv.innerHTML = `
+                <span class="input-group-text">${newIndex + 1}</span>
+                <input type="text" name="option${newIndex}" class="form-control" placeholder="متن گزینه ${newIndex + 1}" required>
+                <div class="input-group-text">
+                    <input class="form-check-input mt-0" type="radio" value="${newIndex}" name="correct_answer">
+                </div>
+            `;
+            container.appendChild(newOptionDiv);
+            optionCountInput.value = newIndex + 1;
+        }
+    </script>
+</body>
+</html>

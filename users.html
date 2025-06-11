@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}مدیریت کاربران{% endblock %}
+{% block page_title %}مدیریت کاربران{% endblock %}
+
+{% block styles %}
+<style>
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #eee; padding: 12px 15px; text-align: right; white-space: nowrap; vertical-align: middle; }
+    th { background-color: #f2f2f2; }
+    .status-premium { color: #1cc88a; font-weight: bold; }
+    .status-regular { color: #858796; }
+    .premium-form { display: flex; align-items: center; gap: 8px; }
+    .premium-form input { width: 70px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+    .toggle-btn { padding: 6px 12px; border: none; border-radius: 4px; color: white; cursor: pointer; }
+    .btn-grant { background-color: #36b9cc; }
+    .btn-revoke { background-color: #f6c23e; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if users %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>شناسه کاربر</th>
+                    <th>نام</th>
+                    <th>نام کاربری</th>
+                    <th>تاریخ عضویت</th>
+                    <th>وضعیت اشتراک</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.user_id }}</td>
+                    <td>{{ user.first_name }} {{ user.last_name }}</td>
+                    <td>@{{ user.username if user.username else '-' }}</td>
+                    <td>{{ user.join_date_shamsi if user.join_date_shamsi else 'N/A' }}</td>
+                    <td>
+                        {# ماژول datetime را برای مقایسه به قالب پاس نداده‌ایم، پس از وجود تاریخ انقضا استفاده می‌کنیم #}
+                        {% if user.premium_expires_at_shamsi %}
+                            <span class="status-premium">ویژه (تا: {{ user.premium_expires_at_shamsi }})</span>
+                        {% else %}
+                            <span class="status-regular">عادی</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form class="premium-form" action="{{ url_for('toggle_premium', user_id=user.user_id) }}" method="post">
+                            {% if user.premium_expires_at %}
+                                <button type="submit" name="revoke" value="1" class="toggle-btn btn-revoke">لغو دسترسی</button>
+                            {% else %}
+                                <input type="number" name="duration" value="30" min="1" required>
+                                <button type="submit" class="toggle-btn btn-grant">فعال‌سازی</button>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p>هنوز هیچ کاربری در ربات ثبت‌نام نکرده است.</p>
+{% endif %}
+{% endblock %}

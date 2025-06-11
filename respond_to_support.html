@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block title %}پاسخ به پیام پشتیبانی{% endblock %}
+{% block page_title %}پاسخ به پیام پشتیبانی{% endblock %}
+
+{% block styles %}
+<style>
+    .message-details, .form-container { background: #fff; border-radius: 8px; padding: 25px; margin-bottom: 30px; }
+    .message-text-box { background-color: #f9f9f9; border: 1px solid #eee; padding: 15px; border-radius: 5px; margin-top: 10px; white-space: pre-wrap; }
+    textarea { width: 100%; padding: 11px; border: 1px solid #ccc; border-radius: 5px; min-height: 120px; box-sizing: border-box; }
+    button[type="submit"] { padding: 12px 25px; color: white; border: none; border-radius: 5px; cursor: pointer; background-color: #4e73df; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="message-details">
+    <h2>جزئیات پیام</h2>
+    <p><strong>شناسه پیام:</strong> {{ message.id }}</p>
+    <p><strong>نام کاربر:</strong> {{ message.first_name }} (@{{ message.username }})</p>
+    <p><strong>تاریخ ارسال:</strong> {{ message.timestamp_shamsi if message.timestamp_shamsi else 'N/A' }}</p>
+    <p><strong>متن پیام:</strong></p>
+    <div class="message-text-box">{{ message.message_text }}</div>
+</div>
+<div class="form-container">
+    <h2>ارسال پاسخ</h2>
+    <form method="post">
+        <div style="margin-bottom: 15px;">
+            <label for="admin_response">پاسخ شما:</label>
+            <textarea id="admin_response" name="admin_response" required>{{ message.admin_response_text or '' }}</textarea>
+        </div>
+        <button type="submit">ارسال پاسخ</button>
+    </form>
+</div>
+{% endblock %}

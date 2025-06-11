@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}پیام‌های پشتیبانی{% endblock %}
+{% block page_title %}پیام‌های پشتیبانی{% endblock %}
+
+{% block styles %}
+<style>
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #eee; padding: 12px 15px; text-align: right; white-space: nowrap; }
+    th { background-color: #f2f2f2; }
+    .action-buttons a, .action-buttons button { display: inline-block; padding: 6px 12px; border-radius: 4px; text-decoration: none; margin-left: 5px; cursor: pointer; border: none; }
+    .edit-btn { background-color: #007bff; color: white; }
+    .delete-btn { background-color: #dc3545; color: white; }
+    .status-new { color: orange; font-weight: bold; }
+    .status-responded { color: green; font-weight: bold; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+    <div class="table-container">
+        <table>
+            <thead><tr><th>شناسه</th><th>نام کاربر</th><th style="white-space: normal;">متن پیام</th><th>تاریخ ارسال</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+            <tbody>
+                {% for message in messages %}
+                <tr>
+                    <td>{{ message.id }}</td>
+                    <td>{{ message.first_name }}<br><small>@{{ message.username }}</small></td>
+                    <td style="max-width: 300px; white-space: normal; vertical-align: middle;">
+                        {{ message.message_text }}
+
+                        {% if message.media_path %}
+                            <br>
+                            <a href="{{ url_for('static', filename=message.media_path) }}" target="_blank" title="مشاهده تصویر در اندازه کامل">
+                                <img src="{{ url_for('static', filename=message.media_path) }}" alt="تصویر پیوست" style="max-width: 100px; max-height: 100px; margin-top: 10px; border-radius: 5px;">
+                            </a>
+                        {% endif %}
+                    </td>
+                    <td>{{ message.timestamp_shamsi if message.timestamp_shamsi else 'N/A' }}</td>
+                    <td>
+                        {% if message.status == 'new' %}<span class="status-new">جدید</span>
+                        {% elif message.status == 'responded' %}<span class="status-responded">پاسخ داده شده</span>
+                        {% else %}{{ message.status }}{% endif %}
+                    </td>
+                    <td class="action-buttons">
+                        <a href="{{ url_for('respond_to_support', message_id=message.id) }}" class="edit-btn">پاسخ</a>
+                        <form action="{{ url_for('delete_support_message_route', message_id=message.id) }}" method="post" style="display:inline;" onsubmit="return confirm('آیا از حذف این پیام اطمینان دارید؟');">
+                            <button type="submit" class="delete-btn">حذف</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p>هنوز هیچ پیام پشتیبانی ثبت نشده است.</p>
+{% endif %}
+{% endblock %}

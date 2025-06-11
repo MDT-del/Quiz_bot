@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block title %}جدول امتیازات{% endblock %}
+{% block page_title %}جدول امتیازات{% endblock %}
+
+{% block styles %}
+<style>
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #eee; padding: 12px 15px; text-align: right; white-space: nowrap; }
+    th { background-color: #f2f2f2; }
+    td:first-child { font-weight: bold; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if top_users %}
+    <div class="table-container">
+        <table>
+            <thead><tr><th>رتبه</th><th>نام</th><th>نام کاربری</th><th>امتیاز کل</th></tr></thead>
+            <tbody>
+                {% for user in top_users %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ user.first_name }} {{ user.last_name }}</td>
+                    <td>@{{ user.username }}</td>
+                    <td>{{ user.score }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p>هنوز هیچ امتیازی در جدول امتیازات ثبت نشده است.</p>
+{% endif %}
+{% endblock %}

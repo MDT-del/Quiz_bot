@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block title %}مدیریت سوالات{% endblock %}
+{% block page_title %}مدیریت سوالات{% endblock %}
+
+{% block styles %}
+<style>
+    .add-button {
+        background-color: #28a745;
+        color: white;
+        padding: 10px 20px;
+        text-decoration: none;
+        border-radius: 5px;
+        display: inline-block;
+        margin-bottom: 20px;
+    }
+    /* استایل‌های نمایش کارتی و جدولی که قبلا داشتیم */
+    .table-container { display: none; }
+    .cards-container { display: block; }
+    .question-card { border: 1px solid #e3e6f0; border-radius: 8px; margin-bottom: 15px; padding: 20px; }
+    .question-card .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e3e6f0; }
+    .question-card .question-id { font-weight: bold; color: #4e73df; background-color: #eaf0ff; padding: 3px 8px; border-radius: 4px; font-size: 0.9em; }
+    .question-card .question-text { font-weight: bold; margin-bottom: 15px; }
+    .question-card .details-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; font-size: 0.95em; margin-bottom: 15px; }
+    .question-card .details-grid > div > strong { display: block; color: #858796; margin-bottom: 4px; }
+    .question-card .options-list { list-style-type: decimal; padding-right: 20px; }
+    .question-card .options-list li { margin-bottom: 5px; }
+    .question-card .action-buttons { display: flex; gap: 10px; }
+    .action-buttons a, .action-buttons button { flex-grow: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; text-align: center; text-decoration: none; }
+    .edit-btn { background-color: #007bff; color: white; }
+    .delete-btn { background-color: #dc3545; color: white; }
+
+    @media (min-width: 992px) {
+        .table-container { display: block; overflow-x: auto; }
+        .cards-container { display: none; }
+        table { width: 100%; border-collapse: collapse; }
+        table th, table td { padding: 12px 15px; border: 1px solid #ddd; text-align: right; vertical-align: middle; }
+        table thead { background-color: #f2f2f2; }
+        .action-buttons-table { display: flex; gap: 5px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('add_question_route') }}" class="add-button">افزودن سوال جدید</a>
+{% if questions %}
+    <div class="cards-container">
+        {% for q in questions %}
+        <div class="question-card">
+            <div class="card-header">
+                <div class="question-id">ID: {{ q.id }}</div>
+                <div class="action-buttons">
+                    <a href="{{ url_for('edit_question_route', question_id=q.id) }}" class="edit-btn">ویرایش</a>
+                    <form action="{{ url_for('delete_question_route', question_id=q.id) }}" method="post" onsubmit="return confirm('آیا از حذف این سوال اطمینان دارید؟');">
+                        <button type="submit" class="delete-btn">حذف</button>
+                    </form>
+                </div>
+            </div>
+            <div class="question-text">{{ q.question_text }}</div>
+            <div class="details-grid">
+                <div><strong>گزینه‌ها:</strong><ol class="options-list">{% for o in q.options %}<li>{{ o }}</li>{% endfor %}</ol></div>
+                <div><strong>پاسخ صحیح:</strong><span>گزینه {{ q.correct_answer + 1 }}</span></div>
+                <div><strong>سطح:</strong><span>{{ q.level }}</span></div>
+                <div><strong>مهارت:</strong><span>{{ q.skill }}</span></div>
+                <div><strong>نوع سوال:</strong><span>{% if q.question_type == 'جامع' %}آزمون جامع{% elif q.question_type == 'مهارتی' %}آزمون مهارتی{% else %}(نامشخص){% endif %}</span></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="table-container">
+        <table>
+            <thead><tr><th>ID</th><th>متن سوال</th><th>پاسخ صحیح</th><th>سطح</th><th>مهارت</th><th>نوع سوال</th><th>عملیات</th></tr></thead>
+            <tbody>
+                {% for q in questions %}
+                <tr>
+                    <td>{{ q.id }}</td>
+                    <td>{{ q.question_text }}</td>
+                    <td>گزینه {{ q.correct_answer + 1 }}</td>
+                    <td>{{ q.level }}</td>
+                    <td>{{ q.skill }}</td>
+                    <td>{% if q.question_type == 'جامع' %}آزمون جامع{% elif q.question_type == 'مهارتی' %}آزمون مهارتی{% else %}(نامشخص){% endif %}</td>
+                    <td><div class="action-buttons action-buttons-table"><a href="{{ url_for('edit_question_route', question_id=q.id) }}" class="edit-btn">ویرایش</a><form action="{{ url_for('delete_question_route', question_id=q.id) }}" method="post" onsubmit="return confirm('آیا از حذف این سوال اطمینان دارید؟');"><button type="submit" class="delete-btn">حذف</button></form></div></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p>هنوز هیچ سوالی در دیتابیس وجود ندارد.</p>
+{% endif %}
+{% endblock %}

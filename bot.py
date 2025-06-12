@@ -10,7 +10,6 @@ from database import (add_question, get_questions, create_tables,
                       get_recent_quiz_count, update_payment_status,
                       get_payment_by_authority)
 from database import get_all_users, set_user_premium
-from bot import send_payment_confirmation
 from payment_gateway.zarinpal import ZarinpalGateway
 from bot import send_main_keyboard
 import jdatetime

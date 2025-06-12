@@ -1,7 +1,20 @@
+# Git files
+.git/
+.gitignore
+
+# Docker files
+Dockerfile
+.dockerignore
+
+# Python virtual environment
+.venv/
+venv/
 __pycache__/
 *.pyc
-.git
-.gitignore
-data/
-*.db
-*.log
+
+# IDE files
+.idea/
+.vscode/
+
+# Composer cache
+vendor/

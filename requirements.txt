@@ -5,8 +5,6 @@ flask==2.3.3
 werkzeug==2.3.8
 jdatetime
 Jinja2==2.7.3
-MarkupSafe==0.23
-itsdangerous==0.24
-suds==0.4
-wsgiref==0.1.2
+requests
+zarinpal-requests
 mysql-connector-python

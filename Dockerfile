@@ -1,18 +1,36 @@
-# 1. انتخاب سیستم‌عامل و نسخه پایتون پایه
-FROM python:3.11-slim
+# Use an official Python runtime as a parent image
+FROM python:3.12-slim
 
-# 2. تعیین پوشه کاری در داخل کانتینر
+# Set the working directory in the container
 WORKDIR /app
 
-# 3. کپی کردن فایل نیازمندی‌ها و نصب کتابخانه‌ها
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install system dependencies, including PHP and Composer
+RUN apt-get update && apt-get install -y \
+    unzip \
+    git \
+    curl \
+    php \
+    php-curl \
+    php-mbstring \
+    php-xml \
+    && rm -rf /var/lib/apt/lists/*
 
-# 4. کپی کردن تمام فایل‌های پروژه به داخل کانتینر
+# Install Composer (PHP package manager)
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Copy dependency files first to leverage Docker cache
+COPY requirements.txt composer.json ./
+
+# Install Python and PHP dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+RUN composer install --no-dev --optimize-autoloader
+
+# Copy the rest of the application code into the container
 COPY . .
 
-# 5. اعلام کردن پورتی که برنامه شما روی آن کار می‌کند
+# Expose the port the app runs on
 EXPOSE 8080
 
-# 6. دستوری که هنگام اجرای کانتینر باید اجرا شود
-CMD ["python3", "main.py"]
+# The command to run when the container starts
+# Gunicorn is a production-ready server for Python/WSGI applications
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "admin_panel:app"]

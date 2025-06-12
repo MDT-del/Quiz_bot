@@ -1,16 +1,16 @@
 import telebot
 from telebot import types
-import sqlite3
+import mysql.connector
 from database import (add_user, get_questions, save_test_result,
                       get_user_stats, get_last_test_time,
-                      get_questions_by_skill_and_level, get_question_by_id,
+                      get_questions_by_skill, get_question_by_id,
                       get_top_users, save_support_message,
                       get_support_message_by_id, get_comprehensive_questions,
                       save_quiz_state, get_quiz_state, delete_quiz_state,
                       is_user_premium, set_user_premium, get_all_users,
                       get_questions_by_skill_and_level,
                       get_user_premium_expiry, create_payment_record)
-from zarinpal_payment.zarinpal import ZarinPal
+from payment_gateway.zarinpal import ZarinpalGateway
 from config import Config
 import traceback
 import time
@@ -102,29 +102,26 @@ def handle_buy_premium(call):
     duration_days = int(parts[2])
     amount = int(parts[3])  # مبلغ به تومان
 
-    # --- تغییر ۱: آدرس بازگشت در همینجا تعریف و به کلاس پاس داده می‌شود ---
     callback_url = f"{Config.REPLIT_APP_URL}/verify_payment"
 
     try:
-        zarinpal = ZarinPal(
-            merchant_id=Config.ZARINPAL_MERCHANT_CODE,
-            callback_url=callback_url,
-            sandbox=False  # برای تست True قرار دهید
-        )
+        # راه‌اندازی درگاه با مرچنت کد شما
+        gateway = ZarinpalGateway(merchant_id=Config.ZARINPAL_MERCHANT_CODE, sandbox=False)
 
         description = f"خرید اشتراک {duration_days} روزه برای ربات"
 
-        # ارسال درخواست پرداخت
-        response = zarinpal.payment_request(amount=amount,
-                                            description=description)
+        # ساخت لینک پرداخت
+        result = gateway.create_payment_link(
+            price=amount,
+            description=description,
+            callback_url=callback_url
+        )
 
-        # --- تغییر ۲: نحوه دریافت authority عوض شده است ---
-        authority = response.get("data", {}).get("authority")
+        # authority همان auth_token در این کتابخانه است
+        authority = result.get("auth_token")
+        payment_url = result.get("link")
 
-        if authority:
-            # --- تغییر ۳: لینک پرداخت حالا باید جداگانه ساخته شود ---
-            payment_url = zarinpal.generate_payment_url(authority)
-
+        if authority and payment_url:
             # ذخیره رکورد پرداخت در دیتابیس
             create_payment_record(user_id, authority, amount)
 
@@ -138,18 +135,12 @@ def handle_buy_premium(call):
                 reply_markup=markup)
             bot.answer_callback_query(call.id)
         else:
-            # اگر authority دریافت نشود، یعنی خطایی رخ داده
-            error_message = response.get("errors", {}).get(
-                "message", "خطای نامشخص از درگاه پرداخت")
-            bot.answer_callback_query(call.id,
-                                      f"خطا: {error_message}",
-                                      show_alert=True)
-            print(f"Zarinpal error: {response.get('errors')}")
+            error_message = result.get("error", "خطای نامشخص از درگاه پرداخت")
+            bot.answer_callback_query(call.id, f"خطا: {error_message}", show_alert=True)
+            print(f"Zarinpal error: {error_message}")
 
     except Exception as e:
-        bot.answer_callback_query(call.id,
-                                  "خطای پیش‌بینی نشده در سیستم پرداخت.",
-                                  show_alert=True)
+        bot.answer_callback_query(call.id, "خطای پیش‌بینی نشده در سیستم پرداخت.", show_alert=True)
         print(f"Error creating payment link: {e}")
 
 

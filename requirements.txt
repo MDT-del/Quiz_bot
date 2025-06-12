@@ -4,7 +4,5 @@ python-dotenv==1.0.0
 flask==2.3.3
 werkzeug==2.3.8
 jdatetime
-Jinja2==2.7.3
-requests
-zarinpal-requests
+persian-payment-gateway
 mysql-connector-python

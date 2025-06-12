@@ -4,5 +4,4 @@ python-dotenv==1.0.0
 flask==2.3.3
 werkzeug==2.3.8
 jdatetime
-persian-payment-gateway==1.0.2
 mysql-connector-python

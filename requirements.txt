@@ -4,6 +4,9 @@ python-dotenv==1.0.0
 flask==2.3.3
 werkzeug==2.3.8
 jdatetime
-zarinpal-payment==0.0.7
-django-zarinpal
+Jinja2==2.7.3
+MarkupSafe==0.23
+itsdangerous==0.24
+suds==0.4
+wsgiref==0.1.2
 mysql-connector-python

@@ -1,0 +1,5 @@
+{
+    "require": {
+        "zarinpal/zarinpal-php": "^3.0"
+    }
+}

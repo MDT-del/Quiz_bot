@@ -9,12 +9,39 @@ Dockerfile
 # Python virtual environment
 .venv/
 venv/
+env/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 
 # IDE files
 .idea/
 .vscode/
+*.swp
+*.swo
 
-# Composer cache
+# Composer cache (relevant due to composer.json)
 vendor/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Data files that might be too large or sensitive if not handled by volumes
+# data/ (اگر فایل‌های دیتای بزرگی دارید که نمی‌خواهید در ایمیج باشند)
+# *.log
+
+# Secrets - should be passed via environment variables or docker secrets
+# .env # اگر فایل .env دارید و نمی‌خواهید در ایمیج باشد
+
+# Backup files
+*.bak
+*.tmp
+
+# Node modules (if any frontend part uses it)
+# node_modules/

@@ -20,11 +20,6 @@ class Config:
 
     # کد مرچنت زرین‌پال
     ZARINPAL_MERCHANT_CODE = os.environ.get('ZARINPAL_MERCHANT_CODE')
-
-    # --- کلید مخفی برای ارتباط امن بین PHP و Python ---
-    # این کلید باید در هر دو طرف (PHP و Python) یکسان باشد.
-    PHP_SECRET_KEY = os.environ.get('PHP_SECRET_KEY', 'a-very-strong-secret-between-php-and-python')
-    # --------------------------------------------------
     
     # تنظیمات دیتابیس
     # مسیر فایل دیتابیس SQLite
@@ -61,7 +56,8 @@ class Config:
 
     # آدرس پایه پنل وب برای ساخت لینک فایل‌های رسانه‌ای
     # در Replit این آدرس به صورت خودکار ساخته می‌شود. اگر نیاز بود آن را در Secrets تنظیم کنید.
-    REPLIT_APP_URL = os.environ.get('REPLIT_APP_URL', '')
+    # یک پیش‌فرض مناسب برای توسعه محلی اگر متغیر محیطی تنظیم نشده باشد.
+    REPLIT_APP_URL = os.environ.get('REPLIT_APP_URL', 'http://localhost:8080')
 
     # NEW: تعریف سطوح دشواری
     QUIZ_LEVELS = ["آسان", "متوسط", "سخت"]

@@ -14,9 +14,8 @@
         display: inline-block;
         margin-bottom: 20px;
     }
-    /* استایل‌های نمایش کارتی و جدولی که قبلا داشتیم */
-    .table-container { display: none; }
-    .cards-container { display: block; }
+    .table-container { display: none; } /* Hidden by default on small screens */
+    .cards-container { display: block; } /* Shown by default on small screens */
     .question-card { border: 1px solid #e3e6f0; border-radius: 8px; margin-bottom: 15px; padding: 20px; }
     .question-card .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e3e6f0; }
     .question-card .question-id { font-weight: bold; color: #4e73df; background-color: #eaf0ff; padding: 3px 8px; border-radius: 4px; font-size: 0.9em; }
@@ -52,6 +51,7 @@
                 <div class="action-buttons">
                     <a href="{{ url_for('edit_question_route', question_id=q.id) }}" class="edit-btn">ویرایش</a>
                     <form action="{{ url_for('delete_question_route', question_id=q.id) }}" method="post" onsubmit="return confirm('آیا از حذف این سوال اطمینان دارید؟');">
+                        <!-- TODO: Add CSRF token here -->
                         <button type="submit" class="delete-btn">حذف</button>
                     </form>
                 </div>
@@ -59,10 +59,10 @@
             <div class="question-text">{{ q.question_text }}</div>
             <div class="details-grid">
                 <div><strong>گزینه‌ها:</strong><ol class="options-list">{% for o in q.options %}<li>{{ o }}</li>{% endfor %}</ol></div>
-                <div><strong>پاسخ صحیح:</strong><span>گزینه {{ q.correct_answer + 1 }}</span></div>
+                <div><strong>پاسخ صحیح:</strong><span>گزینه {{ q.correct_answer + 1 if q.correct_answer is not none else 'N/A' }}</span></div>
                 <div><strong>سطح:</strong><span>{{ q.level }}</span></div>
                 <div><strong>مهارت:</strong><span>{{ q.skill }}</span></div>
-                <div><strong>نوع سوال:</strong><span>{% if q.question_type == 'جامع' %}آزمون جامع{% elif q.question_type == 'مهارتی' %}آزمون مهارتی{% else %}(نامشخص){% endif %}</span></div>
+                <div><strong>نوع سوال:</strong><span>{% if q.question_type == 'جامع' %}آزمون جامع{% elif q.question_type == 'مهارتی' %}آزمون مهارتی{% else %}{{ q.question_type | default('(نامشخص)') }}{% endif %}</span></div>
             </div>
         </div>
         {% endfor %}
@@ -75,11 +75,19 @@
                 <tr>
                     <td>{{ q.id }}</td>
                     <td>{{ q.question_text }}</td>
-                    <td>گزینه {{ q.correct_answer + 1 }}</td>
+                    <td>گزینه {{ q.correct_answer + 1 if q.correct_answer is not none else 'N/A' }}</td>
                     <td>{{ q.level }}</td>
                     <td>{{ q.skill }}</td>
-                    <td>{% if q.question_type == 'جامع' %}آزمون جامع{% elif q.question_type == 'مهارتی' %}آزمون مهارتی{% else %}(نامشخص){% endif %}</td>
-                    <td><div class="action-buttons action-buttons-table"><a href="{{ url_for('edit_question_route', question_id=q.id) }}" class="edit-btn">ویرایش</a><form action="{{ url_for('delete_question_route', question_id=q.id) }}" method="post" onsubmit="return confirm('آیا از حذف این سوال اطمینان دارید؟');"><button type="submit" class="delete-btn">حذف</button></form></div></td>
+                    <td>{% if q.question_type == 'جامع' %}آزمون جامع{% elif q.question_type == 'مهارتی' %}آزمون مهارتی{% else %}{{ q.question_type | default('(نامشخص)') }}{% endif %}</td>
+                    <td>
+                        <div class="action-buttons action-buttons-table">
+                            <a href="{{ url_for('edit_question_route', question_id=q.id) }}" class="edit-btn">ویرایش</a>
+                            <form action="{{ url_for('delete_question_route', question_id=q.id) }}" method="post" onsubmit="return confirm('آیا از حذف این سوال اطمینان دارید؟');">
+                                <!-- TODO: Add CSRF token here -->
+                                <button type="submit" class="delete-btn">حذف</button>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

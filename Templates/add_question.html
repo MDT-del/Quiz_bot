@@ -41,6 +41,7 @@
             {% endwith %}
 
             <form method="post" enctype="multipart/form-data">
+                <!-- TODO: Add CSRF token here e.g. <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> -->
                 <div class="mb-3">
                     <label for="question_text" class="form-label">متن سوال:</label>
                     <textarea class="form-control" id="question_text" name="question_text" rows="4" required></textarea>

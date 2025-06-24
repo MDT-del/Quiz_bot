@@ -20,10 +20,20 @@
     <p><strong>تاریخ ارسال:</strong> {{ message.timestamp_shamsi if message.timestamp_shamsi else 'N/A' }}</p>
     <p><strong>متن پیام:</strong></p>
     <div class="message-text-box">{{ message.message_text }}</div>
+
+    {% if message.media_url %}
+    <p style="margin-top: 15px;"><strong>فایل ضمیمه:</strong>
+        <a href="{{ message.media_url }}" target="_blank">مشاهده فایل</a>
+        {% if message.media_url.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
+            <br><img src="{{ message.media_url }}" alt="تصویر ضمیمه" style="max-width: 300px; max-height: 300px; margin-top:10px; border-radius: 5px;">
+        {% endif %}
+    </p>
+    {% endif %}
 </div>
 <div class="form-container">
     <h2>ارسال پاسخ</h2>
     <form method="post">
+        <!-- TODO: Add CSRF token here e.g. <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> -->
         <div style="margin-bottom: 15px;">
             <label for="admin_response">پاسخ شما:</label>
             <textarea id="admin_response" name="admin_response" required>{{ message.admin_response_text or '' }}</textarea>

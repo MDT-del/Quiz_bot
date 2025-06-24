@@ -30,10 +30,11 @@ class Config:
     # مسیر فایل دیتابیس SQLite
     # DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'quiz.db')
     # تنظیمات جدید دیتابیس MySQL
-    MYSQL_HOST = '127.0.0.1'
-    MYSQL_USER = 'root'
-    MYSQL_PASSWORD = 'H!dden686973'
-    MYSQL_DB = 'quiz' # نام دیتابیسی که ساختیم
+    # این مقادیر از متغیرهای محیطی خوانده می‌شوند که توسط docker-compose.yml تنظیم می‌شوند.
+    MYSQL_HOST = os.environ.get('MYSQL_HOST', 'db')  # 'db' نام سرویس دیتابیس در docker-compose.yml است
+    MYSQL_USER = os.environ.get('MYSQL_USER', 'root')
+    MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', 'H!dden686973') # رمز عبور پیش‌فرض اگر متغیر محیطی تنظیم نشده باشد
+    MYSQL_DB = os.environ.get('MYSQL_DB', 'quiz') # نام دیتابیس پیش‌فرض اگر متغیر محیطی تنظیم نشده باشد
     MAX_QUESTIONS = 100  # حداکثر تعداد سوالات در هر آزمون برای ربات
 
     # تنظیمات پنل مدیریت وب (Flask)

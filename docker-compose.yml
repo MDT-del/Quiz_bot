@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080" # Map host port 8080 to container port 8080 (Flask default)
+    volumes:
+      - .:/app # Mount current directory to /app in container for live code changes (optional for development)
+      - ./static/media:/app/static/media # Mount media upload folder
+    environment:
+      # --- Telegram Bot and Admin Config ---
+      - BOT_TOKEN=${BOT_TOKEN} # Replace with your actual bot token or set in .env
+      - CHANNEL_ID=${CHANNEL_ID} # Optional: Your channel ID
+      - ADMIN_IDS=${ADMIN_IDS} # Comma-separated list of admin IDs
+      # --- ZarinPal ---
+      - ZARINPAL_MERCHANT_CODE=${ZARINPAL_MERCHANT_CODE}
+      # --- PHP Secret Key ---
+      - PHP_SECRET_KEY=${PHP_SECRET_KEY:-a-very-strong-secret-between-php-and-python}
+      # --- Database Config (App side) ---
+      # The app will connect to the 'db' service on the Docker network
+      - MYSQL_HOST=db
+      - MYSQL_USER=${MYSQL_USER:-root} # Should match MYSQL_USER in db service or be a user you create
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-H!dden686973} # Should match MYSQL_PASSWORD in db service
+      - MYSQL_DB=${MYSQL_DB:-quiz} # Should match MYSQL_DATABASE in db service
+      # --- Flask Admin Panel Config ---
+      - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-please-change-this}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-password}
+      # --- Other Configs from config.py ---
+      - QUIZ_COOLDOWN_HOURS=${QUIZ_COOLDOWN_HOURS:-24}
+      - MAX_QUESTIONS=${MAX_QUESTIONS:-100}
+      - WEB_HOST=0.0.0.0 # Flask app will listen on all interfaces within the container
+      - WEB_PORT=8080 # Flask app port inside the container
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # REPLIT_APP_URL might not be needed if not running on Replit or if URLs are handled differently
+      # - REPLIT_APP_URL=${REPLIT_APP_URL}
+    depends_on:
+      - db
+    networks:
+      - quiz_network
+
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password # Ensure compatibility with older clients if needed
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-H!dden686973_root} # Choose a strong root password
+      MYSQL_DATABASE: ${MYSQL_DB:-quiz} # Database name
+      MYSQL_USER: ${MYSQL_USER:-root} # User for the application
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-H!dden686973} # Password for the application user
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./data/quiz.sql:/docker-entrypoint-initdb.d/init.sql # Initialize DB with this script
+    ports:
+      - "3307:3306" # Optional: Map host port 3307 to MySQL container port 3306 for external access
+    networks:
+      - quiz_network
+
+volumes:
+  mysql_data:
+
+networks:
+  quiz_network:
+    driver: bridge

@@ -50,7 +50,7 @@
                     </td>
                     <td>
                         <form class="premium-form" action="{{ url_for('toggle_premium', user_id=user.user_id) }}" method="post">
-                            <!-- TODO: Add CSRF token here -->
+                            <!-- TODO: Add CSRF token here, e.g., <input type="hidden" name="csrf_token" value="PLACEHOLDER_CSRF_TOKEN"> -->
                             {% if user.premium_expires_at %}
                                 <button type="submit" name="revoke" value="1" class="toggle-btn btn-revoke">لغو دسترسی</button>
                             {% else %}

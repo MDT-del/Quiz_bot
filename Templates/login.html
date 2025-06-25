@@ -91,7 +91,7 @@
         {% endwith %}
 
         <form method="post" action="{{ url_for('login') }}">
-            <!-- TODO: Add CSRF token here e.g. <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> -->
+            <!-- TODO: Add CSRF token here, e.g., by integrating Flask-WTF and adding <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}"> or form.hidden_tag() -->
             <div class="form-group">
                 <label for="username">نام کاربری:</label>
                 <input type="text" id="username" name="username" required autofocus>

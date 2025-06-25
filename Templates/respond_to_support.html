@@ -33,7 +33,7 @@
 <div class="form-container">
     <h2>ارسال پاسخ</h2>
     <form method="post">
-        <!-- TODO: Add CSRF token here e.g. <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> -->
+        <!-- TODO: Add CSRF token here, e.g., by integrating Flask-WTF and adding <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}"> or form.hidden_tag() -->
         <div style="margin-bottom: 15px;">
             <label for="admin_response">پاسخ شما:</label>
             <textarea id="admin_response" name="admin_response" required>{{ message.admin_response_text or '' }}</textarea>

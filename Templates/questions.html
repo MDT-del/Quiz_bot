@@ -51,7 +51,7 @@
                 <div class="action-buttons">
                     <a href="{{ url_for('edit_question_route', question_id=q.id) }}" class="edit-btn">ویرایش</a>
                     <form action="{{ url_for('delete_question_route', question_id=q.id) }}" method="post" onsubmit="return confirm('آیا از حذف این سوال اطمینان دارید؟');">
-                        <!-- TODO: Add CSRF token here -->
+                        <!-- TODO: Add CSRF token here, e.g., <input type="hidden" name="csrf_token" value="PLACEHOLDER_CSRF_TOKEN"> -->
                         <button type="submit" class="delete-btn">حذف</button>
                     </form>
                 </div>
@@ -83,7 +83,7 @@
                         <div class="action-buttons action-buttons-table">
                             <a href="{{ url_for('edit_question_route', question_id=q.id) }}" class="edit-btn">ویرایش</a>
                             <form action="{{ url_for('delete_question_route', question_id=q.id) }}" method="post" onsubmit="return confirm('آیا از حذف این سوال اطمینان دارید؟');">
-                                <!-- TODO: Add CSRF token here -->
+                                <!-- TODO: Add CSRF token here, e.g., <input type="hidden" name="csrf_token" value="PLACEHOLDER_CSRF_TOKEN"> -->
                                 <button type="submit" class="delete-btn">حذف</button>
                             </form>
                         </div>

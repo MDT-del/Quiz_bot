@@ -68,54 +68,54 @@ def create_tables():
     tables = {}
     tables['users'] = ('''
         CREATE TABLE IF NOT EXISTS `users` (
-            `user_id` BIGINT PRIMARY KEY,
+            `user_id` BIGINT UNSIGNED PRIMARY KEY,
             `username` VARCHAR(255),
             `first_name` VARCHAR(255),
             `last_name` VARCHAR(255),
             `join_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
             `premium_expires_at` DATETIME NULL
-        ) ENGINE=InnoDB
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ''')
     tables['questions'] = ('''
         CREATE TABLE IF NOT EXISTS `questions` (
-            `id` INT PRIMARY KEY AUTO_INCREMENT,
+            `id` INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
             `question_text` TEXT NOT NULL,
             `options` JSON NOT NULL,
-            `correct_answer` INT NOT NULL,
+            `correct_answer` INT UNSIGNED NOT NULL,
             `level` VARCHAR(50) NOT NULL,
             `skill` VARCHAR(50) NOT NULL,
             `media_path` VARCHAR(255),
             `media_type` VARCHAR(50),
             `question_type` VARCHAR(50)
-        ) ENGINE=InnoDB
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ''')
     tables['test_results'] = ('''
         CREATE TABLE IF NOT EXISTS `test_results` (
-            `test_id` INT PRIMARY KEY AUTO_INCREMENT,
-            `user_id` BIGINT NOT NULL,
+            `test_id` INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+            `user_id` BIGINT UNSIGNED NOT NULL,
             `score` INT NOT NULL,
             `level` VARCHAR(50) NOT NULL,
             `test_type` VARCHAR(50) NOT NULL,
             `test_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`)
-        ) ENGINE=InnoDB
+            FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ''')
     tables['support_messages'] = ('''
         CREATE TABLE IF NOT EXISTS `support_messages` (
-            `id` INT PRIMARY KEY AUTO_INCREMENT,
-            `user_id` BIGINT NOT NULL,
+            `id` INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+            `user_id` BIGINT UNSIGNED NOT NULL,
             `message_text` TEXT NOT NULL,
             `timestamp` DATETIME DEFAULT CURRENT_TIMESTAMP,
             `admin_response_text` TEXT,
             `responded_at` DATETIME,
             `status` VARCHAR(50) DEFAULT 'new',
             `media_path` VARCHAR(255),
-            FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`)
-        ) ENGINE=InnoDB
+            FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ''')
     tables['quiz_states'] = ('''
         CREATE TABLE IF NOT EXISTS `quiz_states` (
-            `user_id` BIGINT PRIMARY KEY,
+            `user_id` BIGINT UNSIGNED PRIMARY KEY,
             `current_quiz` VARCHAR(255),
             `questions` JSON NOT NULL,
             `current_question_index` INT NOT NULL,
@@ -129,14 +129,14 @@ def create_tables():
     ''')
     tables['payments'] = ('''
         CREATE TABLE IF NOT EXISTS `payments` (
-            `id` INT PRIMARY KEY AUTO_INCREMENT,
-            `user_id` BIGINT NOT NULL,
+            `id` INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+            `user_id` BIGINT UNSIGNED NOT NULL,
             `authority` VARCHAR(255) NOT NULL,
             `amount` INT NOT NULL,
             `status` VARCHAR(50) DEFAULT 'pending',
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`)
-        ) ENGINE=InnoDB
+            FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ''')
     
     conn = get_db_connection()

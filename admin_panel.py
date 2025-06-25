@@ -30,7 +30,7 @@ import uuid # Keep for generating unique IDs
 # csrf = CSRFProtect(app)
 
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='Templates') # Explicitly set template folder
 app.secret_key = Config.SECRET_KEY
 
 # Configure logger for this module

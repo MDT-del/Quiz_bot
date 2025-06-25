@@ -170,7 +170,38 @@ def _handle_media_upload(media_file):
     elif media_file and media_file.filename != '':
         # File was provided but not allowed
         flash(f"نوع فایل '{media_file.filename}' مجاز نیست. فایل‌های مجاز: {', '.join(app.config['ALLOWED_EXTENSIONS'])}", "warning")
-    return media_path, media_type
+        return None, None # Indicate failure
+
+    # اگر فایلی انتخاب نشده باشد
+    if not media_file or not media_file.filename:
+        return None, None
+
+    # تلاش برای ذخیره فایل
+    try:
+        filename = secure_filename(media_file.filename)
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            logger.info(f"Created UPLOAD_FOLDER at {app.config['UPLOAD_FOLDER']}")
+
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+        base, ext = os.path.splitext(filename)
+        counter = 1
+        while os.path.exists(file_path):
+            filename = f"{base}_{counter}{ext}"
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            counter += 1
+
+        media_file.save(file_path)
+        media_path = os.path.join('media', filename)  # مسیر نسبی برای ذخیره در دیتابیس و استفاده در url_for
+        media_type = get_media_type(filename.rsplit('.', 1)[1].lower())
+        logger.info(f"فایل رسانه '{filename}' با موفقیت در {file_path} آپلود شد. مسیر دیتابیس: {media_path}, نوع: {media_type}")
+        return media_path, media_type
+
+    except Exception as e:
+        logger.error(f"خطا در ذخیره فایل رسانه '{media_file.filename}': {e}", exc_info=True)
+        flash(f"خطا در ذخیره فایل رسانه: {e}", "danger")
+        return None, None # Indicate failure
 
 @app.route('/add_question', methods=['GET', 'POST'])
 @admin_required
@@ -207,10 +238,13 @@ def add_question_route():
             media_path, media_type = None, None
             if 'media_file' in request.files:
                  media_file = request.files['media_file']
-                 media_path, media_type = _handle_media_upload(media_file)
-                 # If _handle_media_upload flashed a warning about file type, we might want to stop
-                 if media_file and media_file.filename != '' and not media_path: # Attempted upload failed validation
-                     return redirect(url_for('add_question_route'))
+                 if media_file and media_file.filename != '': # اگر فایلی انتخاب شده باشد
+                     media_path, media_type = _handle_media_upload(media_file)
+                     if not media_path: # اگر آپلود ناموفق بود (خطای نوع یا ذخیره‌سازی)
+                         # پیام خطا قبلاً توسط _handle_media_upload فلش شده است
+                         return redirect(url_for('add_question_route'))
+            else: # فایلی انتخاب نشده
+                media_path, media_type = None, None
 
 
             add_question(question_text, options, correct_answer, level, skill,
@@ -272,35 +306,40 @@ def edit_question_route(question_id):
             media_path, media_type = question.get('media_path'), question.get('media_type')
             if 'media_file' in request.files:
                 media_file = request.files['media_file']
-                if media_file and media_file.filename != '': # New file uploaded
-                    # Delete old media if it exists
-                    if media_path:
-                        old_media_disk_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(media_path))
+                if media_file and media_file.filename != '': # اگر فایل جدیدی آپلود شده
+                    # ابتدا فایل قدیمی (اگر وجود دارد) را حذف می‌کنیم
+                    if question.get('media_path'):
+                        old_media_disk_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(question['media_path']))
                         if os.path.exists(old_media_disk_path):
                             try:
                                 os.remove(old_media_disk_path)
-                                logger.info(f"Old media file {old_media_disk_path} deleted.")
+                                logger.info(f"فایل رسانه قدیمی {old_media_disk_path} برای ویرایش سوال حذف شد.")
                             except OSError as oe:
-                                logger.error(f"Error deleting old media file {old_media_disk_path}: {oe}", exc_info=True)
+                                logger.error(f"خطا در حذف فایل رسانه قدیمی {old_media_disk_path}: {oe}", exc_info=True)
 
+                    # آپلود فایل جدید
                     new_media_path, new_media_type = _handle_media_upload(media_file)
-                    if media_file and not new_media_path: # Upload validation failed
+                    if not new_media_path: # اگر آپلود فایل جدید ناموفق بود
+                        # پیام خطا توسط _handle_media_upload فلش شده است
                         return redirect(url_for('edit_question_route', question_id=question_id))
                     media_path, media_type = new_media_path, new_media_type
-                elif request.form.get('remove_media') == '1' and media_path: # Checkbox to remove media
-                    old_media_disk_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(media_path))
+
+                elif request.form.get('remove_media') == '1' and question.get('media_path'): # اگر گزینه "حذف مدیا" انتخاب شده
+                    old_media_disk_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(question['media_path']))
                     if os.path.exists(old_media_disk_path):
                         try:
                             os.remove(old_media_disk_path)
-                            logger.info(f"Media file {old_media_disk_path} removed by user request.")
+                            logger.info(f"فایل رسانه {old_media_disk_path} به درخواست کاربر حذف شد.")
                         except OSError as oe:
-                             logger.error(f"Error deleting media file {old_media_disk_path} by user request: {oe}", exc_info=True)
+                             logger.error(f"خطا در حذف فایل رسانه {old_media_disk_path} به درخواست کاربر: {oe}", exc_info=True)
+                             flash("خطا در حذف فایل رسانه از سرور.", "warning")
                     media_path, media_type = None, None
+                # در غیر این صورت (نه فایل جدیدی آپلود شده و نه گزینه حذف انتخاب شده)، مقادیر مدیا بدون تغییر باقی می‌مانند (از question اولیه گرفته شده‌اند)
 
 
             update_question(question_id, question_text, options,
                             correct_answer, level, skill, question_type,
-                            media_path, media_type)
+                            media_path, media_type) # media_path و media_type به‌روز شده یا قبلی هستند
             flash("سوال با موفقیت ویرایش شد!", "success")
             return redirect(url_for('manage_questions'))
         except ValueError:

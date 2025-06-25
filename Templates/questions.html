@@ -20,9 +20,10 @@
     .question-card .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e3e6f0; }
     .question-card .question-id { font-weight: bold; color: #4e73df; background-color: #eaf0ff; padding: 3px 8px; border-radius: 4px; font-size: 0.9em; }
     .question-card .question-text { font-weight: bold; margin-bottom: 15px; }
-    .question-card .details-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; font-size: 0.95em; margin-bottom: 15px; }
+    .question-card .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 0.95em; margin-bottom: 15px; }
     .question-card .details-grid > div > strong { display: block; color: #858796; margin-bottom: 4px; }
     .question-card .options-list { list-style-type: decimal; padding-right: 20px; }
+    .question-card .media-preview img { max-width: 100px; max-height: 70px; border-radius: 4px; margin-top: 5px; }
     .question-card .options-list li { margin-bottom: 5px; }
     .question-card .action-buttons { display: flex; gap: 10px; }
     .action-buttons a, .action-buttons button { flex-grow: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; text-align: center; text-decoration: none; }
@@ -63,13 +64,26 @@
                 <div><strong>سطح:</strong><span>{{ q.level }}</span></div>
                 <div><strong>مهارت:</strong><span>{{ q.skill }}</span></div>
                 <div><strong>نوع سوال:</strong><span>{% if q.question_type == 'جامع' %}آزمون جامع{% elif q.question_type == 'مهارتی' %}آزمون مهارتی{% else %}{{ q.question_type | default('(نامشخص)') }}{% endif %}</span></div>
+                <div>
+                    <strong>رسانه:</strong>
+                    {% if q.media_path %}
+                        <span><a href="{{ url_for('static', filename=q.media_path) }}" target="_blank">مشاهده ({{ q.media_type }})</a></span>
+                        {% if q.media_type == 'image' %}
+                            <div class="media-preview">
+                                <img src="{{ url_for('static', filename=q.media_path) }}" alt="پیش‌نمایش رسانه">
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <span>ندارد</span>
+                    {% endif %}
+                </div>
             </div>
         </div>
         {% endfor %}
     </div>
     <div class="table-container">
         <table>
-            <thead><tr><th>ID</th><th>متن سوال</th><th>پاسخ صحیح</th><th>سطح</th><th>مهارت</th><th>نوع سوال</th><th>عملیات</th></tr></thead>
+            <thead><tr><th>ID</th><th>متن سوال</th><th>پاسخ صحیح</th><th>سطح</th><th>مهارت</th><th>نوع سوال</th><th>رسانه</th><th>عملیات</th></tr></thead>
             <tbody>
                 {% for q in questions %}
                 <tr>
@@ -79,6 +93,16 @@
                     <td>{{ q.level }}</td>
                     <td>{{ q.skill }}</td>
                     <td>{% if q.question_type == 'جامع' %}آزمون جامع{% elif q.question_type == 'مهارتی' %}آزمون مهارتی{% else %}{{ q.question_type | default('(نامشخص)') }}{% endif %}</td>
+                    <td>
+                        {% if q.media_path %}
+                            <a href="{{ url_for('static', filename=q.media_path) }}" target="_blank">مشاهده ({{ q.media_type }})</a>
+                            {% if q.media_type == 'image' %}
+                                <img src="{{ url_for('static', filename=q.media_path) }}" alt="پیش‌نمایش" style="max-width:50px; max-height:30px; vertical-align: middle;">
+                            {% endif %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                     <td>
                         <div class="action-buttons action-buttons-table">
                             <a href="{{ url_for('edit_question_route', question_id=q.id) }}" class="edit-btn">ویرایش</a>

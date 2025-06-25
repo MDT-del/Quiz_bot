@@ -63,6 +63,8 @@ def send_main_keyboard(user_id, text="به منوی اصلی خوش آمدید!"
 
 @bot.message_handler(func=lambda message: message.text == "📝 آزمون‌ها و چالش‌ها")
 def handle_quiz_menu(message):
+    user = message.from_user
+    add_user(user.id, user.username, user.first_name, user.last_name) # اطمینان از وجود کاربر
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     btn_quiz_general = types.KeyboardButton("📝 آزمون جامع")
     btn_quiz_skill = types.KeyboardButton("📚 آزمون مهارتی")
@@ -143,7 +145,9 @@ def check_membership_callback(call):
 
 @bot.message_handler(func=lambda message: message.text == "💎 حساب کاربری ویژه")
 def handle_premium_account(message):
-    user_id = message.chat.id
+    user = message.from_user
+    add_user(user.id, user.username, user.first_name, user.last_name) # اطمینان از وجود کاربر
+    user_id = user.id # استفاده از user.id به جای message.chat.id برای ثبات
     premium_text = ""
     markup = None
 
@@ -250,7 +254,9 @@ def handle_cancel_payment(call):
 
 @bot.message_handler(func=lambda message: message.text == "📊 آمار من")
 def handle_my_stats(message):
-    user_id = message.chat.id
+    user = message.from_user
+    add_user(user.id, user.username, user.first_name, user.last_name) # اطمینان از وجود کاربر
+    user_id = user.id
     stats = get_user_stats(user_id) # Assuming get_user_stats returns a dict or None
     if stats and stats.get('num_tests', 0) > 0:
         response_text = (f"📊 *آمار عملکرد شما:*\n\n"
@@ -349,7 +355,9 @@ def start_quiz_logic(user_id, questions, test_type, level_display_name):
 
 @bot.message_handler(func=lambda message: message.text == "📝 آزمون جامع")
 def handle_general_quiz(message):
-    user_id = message.chat.id
+    user = message.from_user
+    add_user(user.id, user.username, user.first_name, user.last_name) # اطمینان از وجود کاربر
+    user_id = user.id
     if get_quiz_state(user_id): # Check if a quiz is already in progress
         bot.send_message(user_id, "شما یک آزمون نیمه‌کاره دارید. لطفاً ابتدا آن را تمام کنید یا منتظر بمانید تا زمان آن به پایان برسد.")
         # Optionally, resend the current question of the active quiz
@@ -382,7 +390,9 @@ def handle_general_quiz(message):
 
 @bot.message_handler(func=lambda message: message.text == "📚 آزمون مهارتی")
 def handle_skill_quiz_selection(message): # Renamed for clarity
-    user_id = message.chat.id
+    user = message.from_user
+    add_user(user.id, user.username, user.first_name, user.last_name) # اطمینان از وجود کاربر
+    user_id = user.id
     if not is_user_premium(user_id):
         bot.send_message(user_id, "این بخش مخصوص کاربران ویژه است. با خرید اشتراک به این آزمون‌ها دسترسی پیدا کنید.")
         # Optionally, call handle_premium_account to show purchase options
@@ -828,7 +838,9 @@ def end_quiz(user_id, quiz_state):
 # --- بخش ۴: پشتیبانی و سایر موارد ---
 @bot.message_handler(func=lambda message: message.text == "✉️ پشتیبانی")
 def handle_support_request(message): # Renamed for clarity
-    user_id = message.chat.id
+    user = message.from_user
+    add_user(user.id, user.username, user.first_name, user.last_name) # اطمینان از وجود کاربر
+    user_id = user.id
     support_sessions[user_id] = {'in_support': True, 'stage': 'awaiting_message'}
 
     markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
@@ -858,11 +870,12 @@ def forward_support_message_to_admins(user_id, first_name, username, message_id_
     user_display = f"{html.escape(first_name or '')} (@{html.escape(username or 'N/A')}, ID: {user_id})"
     admin_notification_text = f"یک پیام پشتیبانی جدید از کاربر {user_display} دریافت شد."
     if media_path_for_admin_info: # If it's a media, inform admin to check panel
-        admin_notification_text += f"\nنوع: تصویر/رسانه. برای مشاهده به پنل ادمین مراجعه کنید: {Config.REPLIT_APP_URL}/support_messages"
+        admin_notification_text += f"\nنوع: تصویر/رسانه. برای مشاهده به پنل ادمین مراجعه کنید: {Config.REPLIT_APP_URL.strip('/')}/support_messages"
 
     for admin_id in Config.ADMIN_IDS:
         try:
-            bot.send_message(admin_id, admin_notification_text)
+            # ارسال پیام به ادمین بدون فرمت خاص برای جلوگیری از خطای entities
+            bot.send_message(admin_id, admin_notification_text, parse_mode=None)
             if message_id_to_forward and not media_path_for_admin_info: # Forward only text directly
                 bot.forward_message(admin_id, user_id, message_id_to_forward)
         except telebot.apihelper.ApiTelegramException as e:

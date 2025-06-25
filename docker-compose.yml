@@ -1,4 +1,4 @@
-# نسخه نهایی، پایدار و پیشنهادی
+# نسخه اصلاح شده برای استفاده از bind mount برای مدیا
 services:
   db:
     image: mysql:8.0
@@ -13,8 +13,6 @@ services:
     volumes:
       # فقط این والیوم برای ذخیره دائمی داده‌های دیتابیس استفاده می‌شود
       - db_data:/var/lib/mysql
-      # دیگر فایل init.sql را اینجا مپ نمی‌کنیم، ایجاد جداول توسط کد پایتون انجام می‌شود
-      # - ./data/quiz.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - quiz_network
     healthcheck:
@@ -22,14 +20,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s # زمان کافی برای راه‌اندازی MySQL
+      start_period: 30s
 
   web:
     build: .
     container_name: quiz-web
     restart: always
-    # command: ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120", "admin_panel:app"]
-    # از gunicorn.conf.py استفاده می‌کنیم که wsgi:application را هدف قرار می‌دهد
     command: ["gunicorn", "-c", "./gunicorn.conf.py", "wsgi:application"]
     depends_on:
       db:
@@ -37,10 +33,10 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # فقط پوشه مدیا را برای پایداری فایل‌های آپلود شده به اشتراک می‌گذاریم
-      # این volume باید توسط سرویس bot هم استفاده شود
-      - media_data:/app/static/media
+      # مپ کردن پوشه مدیا از هاست به کانتینر
+      - ./static/media:/app/static/media  # مسیر هاست: ./static/media (نسبت به docker-compose.yml)
       # برای توسعه، می‌توانید کد را هم مپ کنید، اما برای پروداکشن بهتر است در ایمیج باشد
+      # اگر می‌خواهید تغییرات کد پایتون هم بلافاصله در کانتینر دیده شود، این خط را از کامنت خارج کنید:
       # - .:/app
     env_file:
       - .env
@@ -54,19 +50,19 @@ services:
     command: ["python", "run_bot.py"] # اسکریپت جدید برای اجرای ربات
     depends_on:
       db:
-        condition: service_healthy # ربات هم باید منتظر آماده شدن دیتابیس بماند
+        condition: service_healthy
     volumes:
-       # دسترسی به پوشه مدیا در صورت نیاز ربات به خواندن فایل (برای ارسال به کاربر)
-      - media_data:/app/static/media # استفاده از همان volume مشترک
-      # - .:/app # اگر ربات نیاز به خواندن مستقیم کدها از هاست دارد (برای توسعه)
+       # دسترسی به پوشه مدیا از هاست به این کانتینر نیز
+      - ./static/media:/app/static/media # مسیر هاست: ./static/media
+      # اگر ربات نیاز به خواندن مستقیم کدها از هاست دارد (برای توسعه)، این خط را از کامنت خارج کنید:
+      # - .:/app
     env_file:
       - .env
     networks:
       - quiz_network
 
 volumes:
-  db_data:
-  media_data: # والیوم مشترک برای فایل‌های رسانه‌ای
+  db_data: # فقط db_data به عنوان named volume باقی می‌ماند
 
 networks:
   quiz_network:

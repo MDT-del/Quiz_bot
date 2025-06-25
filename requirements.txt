@@ -5,3 +5,4 @@ flask==2.3.3
 werkzeug==2.3.8
 jdatetime
 mysql-connector-python
+gunicorn

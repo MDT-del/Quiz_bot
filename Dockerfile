@@ -28,10 +28,11 @@ COPY . .
 # If it's created by the app, this line might not be needed.
 # For now, we assume the app or Flask handles its creation if needed.
 
-# Expose the port the app runs on
-# We'll use 8080 as per the default in config.py and common practice
+# Expose the port the app runs on (Gunicorn will listen on this port inside the container)
 EXPOSE 8080
 
-# Define the command to run the application
-# This will execute main.py which in turn starts the bot and the Flask admin panel
-CMD ["python", "main.py"]
+# Define the command to run the application using Gunicorn
+# Gunicorn will look for an 'app' object in a module named 'wsgi' (wsgi.py)
+# Workers: Adjust based on your server's CPU cores (e.g., 2 * num_cores + 1)
+# Timeout: Increase if you have long-running requests
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120", "wsgi:app"]

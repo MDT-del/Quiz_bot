@@ -34,6 +34,7 @@ import random # If any randomization is needed (e.g. for question order, though 
 import uuid # For generating unique IDs like payment authority
 import json # Added for parsing options if they are string
 import logging
+from telebot.formatting import escape_markdown # Added for escaping markdown entities
 
 # Configure logger for this module
 logger = logging.getLogger(__name__)
@@ -867,15 +868,26 @@ def handle_cancel_support(message):
 
 def forward_support_message_to_admins(user_id, first_name, username, message_id_to_forward=None, text_content=None, media_path_for_admin_info=None):
     """Helper to forward/notify admins about a new support message."""
-    user_display = f"{html.escape(first_name or '')} (@{html.escape(username or 'N/A')}, ID: {user_id})"
+    # Escape user-provided parts for MarkdownV2
+    safe_first_name = escape_markdown(first_name or '')
+    safe_username = escape_markdown(username or 'N/A')
+    # Note: user_id is an integer and does not need escaping.
+    # Config.REPLIT_APP_URL might contain characters that need escaping if used directly in Markdown,
+    # but here it's part of a URL string which is usually fine.
+    # However, if the URL itself were to be part of a Markdown link like [text](url), the text part would need escaping.
+
+    user_display = f"{safe_first_name} (@{safe_username}, ID: {user_id})"
     admin_notification_text = f"یک پیام پشتیبانی جدید از کاربر {user_display} دریافت شد."
+
     if media_path_for_admin_info: # If it's a media, inform admin to check panel
-        admin_notification_text += f"\nنوع: تصویر/رسانه. برای مشاهده به پنل ادمین مراجعه کنید: {Config.REPLIT_APP_URL.strip('/')}/support_messages"
+        # Ensure the URL itself is not treated as Markdown
+        url_to_panel = escape_markdown(f"{Config.REPLIT_APP_URL.strip('/')}/support_messages")
+        admin_notification_text += f"\nنوع: تصویر/رسانه. برای مشاهده به پنل ادمین مراجعه کنید: {url_to_panel}"
 
     for admin_id in Config.ADMIN_IDS:
         try:
-            # ارسال پیام به ادمین بدون فرمت خاص برای جلوگیری از خطای entities
-            bot.send_message(admin_id, admin_notification_text, parse_mode=None)
+            # ارسال پیام به ادمین با MarkdownV2
+            bot.send_message(admin_id, admin_notification_text, parse_mode="MarkdownV2")
             if message_id_to_forward and not media_path_for_admin_info: # Forward only text directly
                 bot.forward_message(admin_id, user_id, message_id_to_forward)
         except telebot.apihelper.ApiTelegramException as e:

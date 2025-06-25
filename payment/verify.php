@@ -9,17 +9,18 @@ use Zarinpal\Zarinpal;
 // خواندن اطلاعات از URL که زرین‌پال و اسکریپت قبلی فرستاده‌اند
 $authority = filter_input(INPUT_GET, 'Authority', FILTER_SANITIZE_STRING);
 $status = filter_input(INPUT_GET, 'Status', FILTER_SANITIZE_STRING);
-$orderId = filter_input(INPUT_GET, 'order_id', FILTER_SANITIZE_STRING);
+$orderId = filter_input(INPUT_GET, 'order_id', FILTER_SANITIZE_STRING); // authority اولیه از سیستم ما
 $amount = filter_input(INPUT_GET, 'amount', FILTER_SANITIZE_NUMBER_INT);
+$duration = filter_input(INPUT_GET, 'duration', FILTER_SANITIZE_NUMBER_INT); // خواندن مدت زمان از callback
 
 // خواندن تنظیمات از متغیرهای محیطی
 $merchantCode = getenv('ZARINPAL_MERCHANT_CODE');
 $replitAppUrl = rtrim(getenv('REPLIT_APP_URL'), '/');
 $phpSecretKey = getenv('PHP_SECRET_KEY');
 
-if (!$authority || !$status || !$orderId || !$merchantCode || !$replitAppUrl || !$phpSecretKey || !$amount) {
+if (!$authority || !$status || !$orderId || !$merchantCode || !$replitAppUrl || !$phpSecretKey || !$amount || !$duration) { // بررسی duration هم اضافه شد
     header("Content-Type: text/html; charset=UTF-8");
-    die("<h1>خطا: اطلاعات بازگشتی از درگاه ناقص است.</h1>");
+    die("<h1>خطا: اطلاعات بازگشتی از درگاه ناقص است (کد ۲).</h1>");
 }
 
 $flaskFailureUrl = $replitAppUrl . "/payment-failed";
@@ -45,7 +46,8 @@ try {
             'order_id' => $orderId, // این همان authority است که در دیتابیس ذخیره شده
             'status' => 'completed',
             'ref_id' => $refId,
-            'amount' => $amount
+            'amount' => $amount,
+            'duration' => $duration // اضافه کردن مدت زمان به داده‌های ارسالی
         ]);
 
         $ch = curl_init($flaskCallbackUrl);

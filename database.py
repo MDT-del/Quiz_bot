@@ -5,9 +5,12 @@ import os
 import datetime
 import json
 import logging
+import threading # Added for Lock
 
 # Setup basic logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# logging.basicConfig should be called in main.py, not here.
+# Assuming main.py configures it. If not, basicConfig here would be a fallback.
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # اطلاعات اتصال به MySQL را از فایل کانفیگ می‌خوانیم
 db_config = {
@@ -22,7 +25,7 @@ db_config = {
 # استفاده از کانکشن پولینگ برای مدیریت بهتر اتصالات
 # متغیر برای نگهداری وضعیت ایجاد پول
 _pool_initialized = False
-_pool_creation_lock = logging.getLock() # برای جلوگیری از تلاش همزمان برای ایجاد پول در محیط چند تردی
+_pool_creation_lock = threading.Lock() # Corrected: Use threading.Lock()
 
 def _init_connection_pool():
     """Initialize the connection pool if not already initialized."""

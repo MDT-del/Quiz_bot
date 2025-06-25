@@ -6,3 +6,4 @@ werkzeug==2.3.8
 jdatetime
 mysql-connector-python
 gunicorn
+whitenoise

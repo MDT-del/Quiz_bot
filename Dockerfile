@@ -35,6 +35,6 @@ COPY gunicorn.conf.py /app/gunicorn.conf.py
 EXPOSE 8080
 
 # Define the command to run the application using Gunicorn with the config file
-# Gunicorn will look for an 'app' object in a module named 'wsgi' (wsgi.py)
+# Gunicorn will look for an 'application' object in a module named 'wsgi' (wsgi.py)
 # Settings like bind, workers, timeout are now primarily managed in gunicorn.conf.py
-CMD ["gunicorn", "-c", "./gunicorn.conf.py", "wsgi:app"]
+CMD ["gunicorn", "-c", "./gunicorn.conf.py", "wsgi:application"]

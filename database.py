@@ -20,41 +20,92 @@ db_config = {
 }
 
 # استفاده از کانکشن پولینگ برای مدیریت بهتر اتصالات
-try:
-    mysql.connector.connect(**db_config) # برای ایجاد پول در اولین اتصال
-    # در نسخه‌های جدیدتر mysql-connector-python، پول به صورت خودکار با اولین اتصال ساخته می‌شود
-    # اگر از نسخه‌های قدیمی‌تر استفاده می‌کنید، ممکن است نیاز به mysql.connector.pooling.MySQLConnectionPool داشته باشید.
-except mysql.connector.Error as err:
-    logging.error(f"خطا در ایجاد اولیه پول کانکشن MySQL: {err}")
-    # در صورت عدم موفقیت در ایجاد پول، برنامه ممکن است نتواند به درستی کار کند.
+# متغیر برای نگهداری وضعیت ایجاد پول
+_pool_initialized = False
+_pool_creation_lock = logging.getLock() # برای جلوگیری از تلاش همزمان برای ایجاد پول در محیط چند تردی
+
+def _init_connection_pool():
+    """Initialize the connection pool if not already initialized."""
+    global _pool_initialized
+    # از قفل برای جلوگیری از ایجاد چندباره پول در محیط چند تردی استفاده می‌کنیم
+    with _pool_creation_lock:
+        if not _pool_initialized:
+            try:
+                logging.info("در حال تلاش برای ایجاد/اتصال اولیه به پول کانکشن MySQL...")
+                # تلاش برای یک اتصال ساده برای اطمینان از اینکه پول ایجاد می‌شود یا وجود دارد
+                # در mysql-connector-python >= 8.0.12، پول با اولین اتصال با pool_name ایجاد می‌شود.
+                # اگر از نسخه‌های قدیمی‌تر استفاده می‌کنید، ممکن است نیاز به mysql.connector.pooling.MySQLConnectionPool باشد.
+
+                # ابتدا یک کانکشن تست برای ایجاد پول می‌گیریم (اگر وجود نداشته باشد)
+                # این کانکشن باید بسته شود.
+                temp_conn_config = db_config.copy()
+                # اگر pool_name در کانفیگ اولیه باشد، اتصال اول آن را می‌سازد.
+                # mysql.connector.connect(**temp_conn_config) # این خط پول را با نام پیش‌فرض می‌سازد اگر نامی در db_config نباشد
+                                                            # یا اگر pool_name در db_config باشد، آن را می‌سازد.
+
+                # برای اطمینان از اینکه پول با تنظیمات ما ساخته شده، یک اتصال آزمایشی با pool_name می‌گیریم
+                # و اگر پول وجود نداشت، یک اتصال مستقیم با کل db_config می‌سازیم تا پول ساخته شود.
+                try:
+                    conn_test = mysql.connector.connect(pool_name=db_config['pool_name'])
+                    conn_test.close()
+                    logging.info(f"پول کانکشن '{db_config['pool_name']}' با موفقیت یافت یا ایجاد شد.")
+                except mysql.connector.errors.PoolError: # اگر پول با این نام وجود نداشت
+                    logging.info(f"پول کانکشن '{db_config['pool_name']}' یافت نشد، در حال ایجاد با تنظیمات کامل...")
+                    conn_init = mysql.connector.connect(**db_config) # این باید پول را بسازد
+                    conn_init.close()
+                    logging.info(f"پول کانکشن '{db_config['pool_name']}' با تنظیمات کامل ایجاد شد.")
+
+                _pool_initialized = True
+            except mysql.connector.Error as err:
+                logging.error(f"خطا در ایجاد اولیه پول کانکشن MySQL: {err}", exc_info=True)
+                # در صورت عدم موفقیت، _pool_initialized همچنان False باقی می‌ماند
+                # و در get_db_connection تلاش برای اتصال مستقیم صورت می‌گیرد.
+                return False # نشان دهنده عدم موفقیت در ایجاد پول
+            return True # نشان دهنده موفقیت در ایجاد پول
+    return True # اگر پول قبلا ساخته شده
 
 def get_db_connection():
-    """ یک اتصال از پول کانکشن MySQL دریافت می‌کند """
+    """ یک اتصال از پول کانکشن MySQL دریافت می‌کند یا یک اتصال مستقیم برقرار می‌کند """
+    global _pool_initialized
+
+    if not _pool_initialized:
+        if not _init_connection_pool(): # اگر ایجاد پول ناموفق بود
+            logging.warning("پول کانکشن ایجاد نشد یا در دسترس نیست. تلاش برای اتصال مستقیم...")
+            # Fallback to direct connection if pool initialization failed
+            try:
+                direct_config = db_config.copy()
+                direct_config.pop('pool_name', None)
+                direct_config.pop('pool_size', None)
+                conn = mysql.connector.connect(**direct_config)
+                logging.info("اتصال مستقیم به دیتابیس (fallback) با موفقیت برقرار شد.")
+                return conn
+            except mysql.connector.Error as direct_err:
+                logging.error(f"خطا در اتصال مستقیم به دیتابیس (fallback): {direct_err}", exc_info=True)
+                return None
+
+    # تلاش برای گرفتن اتصال از پول موجود
     try:
-        # conn = mysql.connector.connect(**db_config) # روش قبلی بدون پولینگ
-        conn = mysql.connector.connect(pool_name='mysql_pool') # دریافت اتصال از پول موجود
+        conn = mysql.connector.connect(pool_name=db_config['pool_name'])
+        # logging.debug(f"اتصال از پول '{db_config['pool_name']}' با موفقیت دریافت شد.")
         return conn
     except mysql.connector.Error as err:
-        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-            logging.error("خطا: نام کاربری یا رمز عبور دیتابیس اشتباه است.")
-        elif err.errno == errorcode.ER_BAD_DB_ERROR:
-            logging.error("خطا: دیتابیس مورد نظر وجود ندارد.")
-        else:
-            logging.error(f"خطا در اتصال به دیتابیس: {err}")
-        return None
-    except Exception as e: # گرفتن خطاهای دیگر مانند خطای مربوط به عدم وجود پول
-        logging.error(f"خطای پیش‌بینی نشده در دریافت اتصال از پول: {e}")
-        # تلاش برای اتصال مستقیم در صورت بروز مشکل با پول (به عنوان fallback)
+        logging.error(f"خطا در دریافت اتصال از پول '{db_config['pool_name']}': {err}", exc_info=True)
+        # اگر خطای دیگری بود، به عنوان fallback اتصال مستقیم را امتحان می‌کنیم
+        # این بخش ممکن است تکراری با منطق بالاتر باشد، اما برای اطمینان در اینجا نیز قرار داده شده
+        logging.warning(f"خطای '{err}' هنگام دریافت اتصال از پول. تلاش برای اتصال مستقیم (fallback)...")
         try:
-            logging.info("تلاش برای اتصال مستقیم به دیتابیس (fallback)...")
             direct_config = db_config.copy()
             direct_config.pop('pool_name', None)
             direct_config.pop('pool_size', None)
-            conn = mysql.connector.connect(**direct_config)
-            return conn
-        except mysql.connector.Error as direct_err:
-            logging.error(f"خطا در اتصال مستقیم به دیتابیس (fallback): {direct_err}")
+            conn_fallback = mysql.connector.connect(**direct_config)
+            logging.info("اتصال مستقیم به دیتابیس (fallback در get_db_connection) با موفقیت برقرار شد.")
+            return conn_fallback
+        except mysql.connector.Error as direct_err_fallback:
+            logging.error(f"خطا در اتصال مستقیم به دیتابیس (fallback نهایی در get_db_connection): {direct_err_fallback}", exc_info=True)
             return None
+    except Exception as e: # گرفتن خطاهای دیگر (بسیار غیرمحتمل)
+        logging.error(f"خطای بسیار پیش‌بینی نشده در get_db_connection: {e}", exc_info=True)
+        return None
 
 
 def create_tables():

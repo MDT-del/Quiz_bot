@@ -94,22 +94,24 @@ def get_db_connection():
     try:
         # logging.debug(f"در حال دریافت اتصال از پول '{_connection_pool.pool_name}'...")
         return _connection_pool.get_connection()
-    except mysql.connector.Error as err: # خطاهایی مانند PoolError (pool exhausted)
-        logging.error(f"خطا در دریافت اتصال از پول '{_connection_pool.pool_name}': {err}", exc_info=True)
+    except (mysql.connector.errors.InterfaceError, mysql.connector.errors.PoolError) as err_pool:
+        logger.error(f"خطا در دریافت اتصال از پول '{_connection_pool.pool_name if _connection_pool else 'None'}': {err_pool}", exc_info=True)
+        logger.warning("پول کانکشن با مشکل مواجه شد، در تلاش برای بازنشانی پول و اتصال مستقیم...")
+        _connection_pool = None # مهم: پول را None کن تا در فراخوانی بعدی دوباره ساخته شود
+
         # تلاش مجدد برای اتصال مستقیم به عنوان آخرین راه حل
-        logging.warning("تلاش مجدد برای اتصال مستقیم به عنوان آخرین راه حل...")
         try:
             direct_config = db_config.copy()
             direct_config.pop('pool_name', None)
             direct_config.pop('pool_size', None)
             conn_fallback_final = mysql.connector.connect(**direct_config)
-            logging.info("اتصال مستقیم (fallback نهایی) با موفقیت برقرار شد.")
+            logging.info("اتصال مستقیم (fallback نهایی پس از خطای پول) با موفقیت برقرار شد.")
             return conn_fallback_final
         except mysql.connector.Error as direct_err_final:
-            logging.error(f"خطا در اتصال مستقیم (fallback نهایی): {direct_err_final}", exc_info=True)
+            logging.error(f"خطا در اتصال مستقیم (fallback نهایی پس از خطای پول): {direct_err_final}", exc_info=True)
             return None
     except Exception as e:
-        logging.error(f"خطای بسیار پیش‌بینی نشده در get_db_connection هنگام دریافت از پول: {e}", exc_info=True)
+        logger.error(f"خطای بسیار پیش‌بینی نشده در get_db_connection هنگام دریافت از پول: {e}", exc_info=True)
         return None
 
 

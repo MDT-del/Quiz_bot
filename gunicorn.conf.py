@@ -95,7 +95,7 @@ def when_ready(server):
 # این مقادیر می‌توانند از طریق متغیرهای محیطی یا مستقیم تنظیم شوند
 # مقادیر پیش‌فرض اگر در CMD Dockerfile یا متغیر محیطی تنظیم نشده باشند
 bind = os.environ.get('GUNICORN_BIND', '0.0.0.0:8080')
-workers = int(os.environ.get('GUNICORN_WORKERS', '2')) # کاهش به ۲ برای تست اولیه، می‌توانید بعداً افزایش دهید
+workers = int(os.environ.get('GUNICORN_WORKERS', '1')) # تغییر به 1 برای تست مشکل چند کارگری
 timeout = int(os.environ.get('GUNICORN_TIMEOUT', '120'))
 # worker_class = os.environ.get('GUNICORN_WORKER_CLASS', 'sync') # sync پیش‌فرض است
 # accesslog = os.environ.get('GUNICORN_ACCESSLOG', '-') # لاگ دسترسی Gunicorn

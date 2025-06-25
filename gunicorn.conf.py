@@ -66,12 +66,12 @@ def when_ready(server):
 # این مقادیر می‌توانند از طریق متغیرهای محیطی یا مستقیم تنظیم شوند یا از CMD Dockerfile بیایند.
 # مقادیر پیش‌فرض اگر در CMD Dockerfile یا متغیر محیطی تنظیم نشده باشند
 bind = os.environ.get('GUNICORN_BIND', '0.0.0.0:8080')
-workers = int(os.environ.get('GUNICORN_WORKERS', '1')) # تغییر به 1 برای تست مشکل چند کارگری
-timeout = int(os.environ.get('GUNICORN_TIMEOUT', '120'))
+workers = int(os.environ.get('GUNICORN_WORKERS', '1')) # همچنان 1 برای تست نگه داشته شده، بعدا می‌توانید افزایش دهید
+timeout = int(os.environ.get('GUNICORN_TIMEOUT', '300')) # افزایش به 300 ثانیه
 # worker_class = os.environ.get('GUNICORN_WORKER_CLASS', 'sync') # sync پیش‌فرض است
 # accesslog = os.environ.get('GUNICORN_ACCESSLOG', '-') # لاگ دسترسی Gunicorn
 # errorlog = os.environ.get('GUNICORN_ERRORLOG', '-')   # لاگ خطای خود Gunicorn
-# loglevel = os.environ.get('GUNICORN_LOGLEVEL', 'info') # سطح لاگ خود Gunicorn
+loglevel = os.environ.get('GUNICORN_LOGLEVEL', 'info') # سطح لاگ خود Gunicorn (می‌تواند debug باشد)
 
 # برای استفاده از لاگینگ پایتون برای Gunicorn (اختیاری اما برای یکپارچگی خوب است)
 # logconfig_dict = {
@@ -118,3 +118,4 @@ timeout = int(os.environ.get('GUNICORN_TIMEOUT', '120'))
 
 logger.info(f"Gunicorn bind: {bind}")
 logger.info(f"Gunicorn workers: {workers}")
+logger.info(f"Gunicorn timeout: {timeout}")

@@ -6,7 +6,7 @@ from database import (
     update_support_message_status, set_user_premium, get_total_user_count, get_total_question_count,
     get_recent_quiz_count, update_payment_status, get_payment_by_authority
 )
-from bot import send_payment_confirmation, send_admin_response_to_user, send_main_keyboard # send_main_keyboard may be unused here
+from bot import send_payment_confirmation, send_admin_response_to_user, send_main_keyboard
 import jdatetime
 from datetime import datetime
 from config import Config
@@ -14,23 +14,22 @@ import os
 from werkzeug.utils import secure_filename
 import logging
 import uuid
+import json # برای پارس کردن آپشن‌ها در روت ویرایش اگر به صورت JSON باشند
 
 # TODO: Add CSRF protection for all POST forms (e.g., using Flask-WTF)
-# from flask_wtf.csrf import CSRFProtect
-# csrf = CSRFProtect(app)
 
 app = Flask(__name__, template_folder='Templates')
 app.secret_key = Config.SECRET_KEY
 
-logger = logging.getLogger(__name__) # Get logger for this module
+logger = logging.getLogger(__name__)
 
-# Initialize tables if they don't exist (idempotent due to "IF NOT EXISTS")
-# This might also be called by run_bot.py, which is fine.
 try:
-    create_tables()
-    logger.info("admin_panel.py: Database tables checked/created successfully at app import.")
+    # create_tables() # این تابع توسط run_bot.py فراخوانی می‌شود. اگر وب سرور هم نیاز به اطمینان از وجود جداول دارد، می‌توان آن را اینجا هم فراخوانی کرد.
+    # با توجه به depends_on در docker-compose، سرویس bot (که create_tables را اجرا می‌کند) باید قبل یا همزمان با web آماده شود.
+    # برای جلوگیری از فراخوانی چندباره غیرضروری، فعلا اینجا کامنت می‌کنیم.
+    logger.info("admin_panel.py: App initialized. Database tables should be handled by bot service or an init step.")
 except Exception as e:
-    logger.error(f"admin_panel.py: Error during initial create_tables(): {e}", exc_info=True)
+    logger.error(f"admin_panel.py: Error during initial setup (if create_tables was called): {e}", exc_info=True)
 
 
 app.config['UPLOAD_FOLDER'] = Config.UPLOAD_FOLDER
@@ -44,21 +43,17 @@ def allowed_file(filename):
 
 def get_media_type(extension):
     audio_extensions = {'mp3', 'wav', 'ogg'}
-    video_extensions = {'mp4', 'avi', 'mov'} # Common video extensions
+    video_extensions = {'mp4', 'avi', 'mov'}
     image_extensions = {'jpg', 'jpeg', 'png', 'gif'}
-    if extension in audio_extensions:
-        return 'audio'
-    elif extension in video_extensions:
-        return 'video'
-    elif extension in image_extensions:
-        return 'image'
+    if extension in audio_extensions: return 'audio'
+    elif extension in video_extensions: return 'video'
+    elif extension in image_extensions: return 'image'
     return None
 
 def _to_shamsi(g_date_obj, date_format="%Y/%m/%d - %H:%M"):
     if g_date_obj and isinstance(g_date_obj, datetime):
         try:
-            if g_date_obj.tzinfo is not None:
-                 g_date_obj = g_date_obj.replace(tzinfo=None)
+            if g_date_obj.tzinfo is not None: g_date_obj = g_date_obj.replace(tzinfo=None)
             return jdatetime.datetime.fromgregorian(datetime=g_date_obj).strftime(date_format)
         except (ValueError, TypeError) as e:
             logger.warning(f"Could not convert date {g_date_obj} to Shamsi: {e}")
@@ -118,7 +113,6 @@ def _handle_media_upload(media_file):
     logger.info(f"_handle_media_upload: تصمیم نهایی برای ذخیره فایل با نام '{filename_to_save}' در مسیر '{file_path_to_save_on_disk}'")
 
     try:
-        # media_file.seek(0) # Ensure stream is at the beginning, usually not needed for first save from FileStorage
         logger.debug(f"_handle_media_upload: در حال تلاش برای اجرای media_file.save('{file_path_to_save_on_disk}')...")
         media_file.save(file_path_to_save_on_disk)
         logger.info(f"_handle_media_upload: دستور media_file.save() برای '{file_path_to_save_on_disk}' اجرا شد.")
@@ -225,9 +219,30 @@ def add_question_route():
                 flash("برای آزمون مهارتی، انتخاب سطح الزامی است.", "danger")
                 return redirect(url_for('add_question_route'))
 
-            options = [opt.strip() for opt_key, opt in request.form.items() if opt_key.startswith('option') and opt.strip()]
+            # اصلاح شده برای جلوگیری از خواندن option_count و سایر فیلدهای ناخواسته به عنوان یک گزینه
+            options = []
+            # استخراج گزینه‌ها بر اساس ترتیب عددی در نام فیلد (option0, option1, ...)
+            i = 0
+            while True:
+                option_key = f'option{i}'
+                if option_key in request.form:
+                    value = request.form.get(option_key, '').strip()
+                    if value: # فقط مقادیر غیرخالی را اضافه کن
+                        options.append(value)
+                    else: # اگر یک گزینه خالی در وسط باشد، متوقف می‌شویم یا می‌توانیم ادامه دهیم و خالی‌ها را نادیده بگیریم
+                        # برای حفظ ترتیب و جلوگیری از گزینه‌های خالی ناخواسته، بهتر است اگر خالی بود، متوقف شویم
+                        # یا اینکه کاربر باید تمام گزینه‌های مورد نظر را پر کند.
+                        # فعلا فرض می‌کنیم کاربر گزینه‌های متوالی را پر می‌کند.
+                        pass # یا break اگر نمی‌خواهید گزینه‌های خالی بعدی را هم چک کنید
+                else:
+                    # اولین optionX که پیدا نشد، یعنی گزینه‌های بیشتری وجود ندارد.
+                    break
+                i += 1
+
+            logger.debug(f"Parsed options in add_question: {options}")
+
             if not options or len(options) < 2:
-                flash("حداقل دو گزینه برای سوال باید وارد شود.", "danger")
+                flash("حداقل دو گزینه برای سوال باید وارد شود و گزینه‌ها نمی‌توانند خالی باشند.", "danger")
                 return redirect(url_for('add_question_route'))
             if correct_answer < 0 or correct_answer >= len(options):
                 flash("شماره گزینه صحیح نامعتبر است.", "danger")
@@ -238,7 +253,7 @@ def add_question_route():
                  media_file = request.files['media_file']
                  if media_file and media_file.filename != '':
                      media_path, media_type = _handle_media_upload(media_file)
-                     if not media_path: # آپلود ناموفق
+                     if not media_path and media_file.filename : # آپلود ناموفق بود اما فایلی انتخاب شده بود
                          return redirect(url_for('add_question_route'))
 
             add_question(question_text, options, correct_answer, level, skill,
@@ -247,8 +262,8 @@ def add_question_route():
             return redirect(url_for('manage_questions'))
 
         except ValueError:
-            flash("شماره گزینه صحیح باید یک عدد باشد.", "danger")
-            logger.warning("ValueError adding question, likely incorrect correct_answer format.", exc_info=True)
+            flash("شماره گزینه صحیح باید یک عدد باشد یا فرمت گزینه‌ها نامعتبر است.", "danger")
+            logger.warning("ValueError adding question.", exc_info=True)
         except Exception as e:
             flash(f"خطا در افزودن سوال: {str(e)}", "danger")
             logger.error(f"Error adding question: {e}", exc_info=True)
@@ -285,9 +300,22 @@ def edit_question_route(question_id):
                 flash("برای آزمون مهارتی، انتخاب سطح الزامی است.", "danger")
                 return redirect(url_for('edit_question_route', question_id=question_id))
 
-            options = [opt.strip() for opt_key, opt in request.form.items() if opt_key.startswith('option') and opt.strip()]
+            # اصلاح شده برای جلوگیری از خواندن option_count و سایر فیلدهای ناخواسته به عنوان یک گزینه
+            options = []
+            i = 0
+            while True:
+                option_key = f'option{i}'
+                if option_key in request.form:
+                    value = request.form.get(option_key, '').strip()
+                    if value:
+                        options.append(value)
+                else:
+                    break
+                i += 1
+            logger.debug(f"Parsed options in edit_question: {options}")
+
             if not options or len(options) < 2:
-                flash("حداقل دو گزینه برای سوال باید وارد شود.", "danger")
+                flash("حداقل دو گزینه برای سوال باید وارد شود و گزینه‌ها نمی‌توانند خالی باشند.", "danger")
                 return redirect(url_for('edit_question_route', question_id=question_id))
             if correct_answer < 0 or correct_answer >= len(options):
                 flash("شماره گزینه صحیح نامعتبر است.", "danger")
@@ -306,7 +334,7 @@ def edit_question_route(question_id):
                             except OSError as oe: logger.error(f"خطا در حذف فایل رسانه قدیمی {old_media_disk_path}: {oe}", exc_info=True)
 
                     uploaded_path, uploaded_type = _handle_media_upload(media_file)
-                    if not uploaded_path:
+                    if not uploaded_path and media_file.filename: # آپلود ناموفق بود اما فایلی انتخاب شده بود
                         return redirect(url_for('edit_question_route', question_id=question_id))
                     new_media_path, new_media_type = uploaded_path, uploaded_type
 
@@ -321,18 +349,26 @@ def edit_question_route(question_id):
             flash("سوال با موفقیت ویرایش شد!", "success")
             return redirect(url_for('manage_questions'))
         except ValueError:
-            flash("شماره گزینه صحیح باید یک عدد باشد.", "danger")
+            flash("شماره گزینه صحیح باید یک عدد باشد یا فرمت گزینه‌ها نامعتبر است.", "danger")
             logger.warning(f"ValueError editing question ID {question_id}.", exc_info=True)
         except Exception as e:
             flash(f"خطا در ویرایش سوال: {str(e)}", "danger")
             logger.error(f"Error updating question ID {question_id}: {e}", exc_info=True)
         return redirect(url_for('edit_question_route', question_id=question_id))
 
-    if isinstance(question.get('options'), str):
-        try: question['options_list'] = json.loads(question['options'])
-        except json.JSONDecodeError: question['options_list'] = []; logger.warning(f"Could not parse options JSON for question ID {question_id} in edit view.")
-    elif isinstance(question.get('options'), list): question['options_list'] = question['options']
-    else: question['options_list'] = []
+    # برای نمایش گزینه‌ها در فرم ویرایش، اگر به صورت JSON ذخیره شده‌اند، آنها را پارس می‌کنیم.
+    # این کار قبلاً در database.py انجام می‌شد، اما برای اطمینان اینجا هم بررسی می‌کنیم.
+    question_options = question.get('options', [])
+    if isinstance(question_options, str):
+        try:
+            question['options_list'] = json.loads(question_options)
+        except json.JSONDecodeError:
+            question['options_list'] = []
+            logger.warning(f"Could not parse options JSON for question ID {question_id} in edit view: {question_options}")
+    elif isinstance(question_options, list):
+         question['options_list'] = question_options
+    else:
+        question['options_list'] = [] # یا مقدار پیش‌فرض دیگر
 
     return render_template('edit_question.html', question=question, quiz_skills=Config.QUIZ_SKILLS, quiz_levels=Config.QUIZ_LEVELS)
 
@@ -547,14 +583,5 @@ def php_payment_callback():
     except Exception as e:
         logger.error(f"Error processing PHP callback for order_id {order_id_from_php}: {e}", exc_info=True)
         return jsonify({"status": "error", "message": "Internal server error during callback processing"}), 500
-
-# اگر از این فایل به طور مستقیم اجرا می‌شد (که با Gunicorn اینطور نیست)
-# if __name__ == '__main__':
-#     # این بخش برای اجرای مستقیم با python admin_panel.py است، نه با Gunicorn
-#     # برای Gunicorn، از wsgi.py استفاده می‌شود.
-#     # create_tables() # اطمینان از ایجاد جداول
-#     # app.run(host=Config.WEB_HOST, port=Config.WEB_PORT, debug=True) # debug=True برای توسعه
-#     logger.info("admin_panel.py executed directly. For Gunicorn, use wsgi:application.")
-#     pass
 
 print("--- admin_panel.py: File imported and setup complete ---")

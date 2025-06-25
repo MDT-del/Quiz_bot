@@ -510,81 +510,82 @@ def send_question_to_user(user_id, question_data):
     question_text_escaped = html.escape(question_data.get('question_text', 'متن سوال یافت نشد.'))
     final_text = f"{time_left_str}{header}\n\n{question_text_escaped}"
 
+    sent_message = None
     try:
-        media_path = question_data.get('media_path')
+        media_path_db = question_data.get('media_path') # e.g., 'media/filename.mp3'
         media_type = question_data.get('media_type')
-        sent_message = None
 
-        if media_path and media_type and Config.REPLIT_APP_URL:
-            # Ensure REPLIT_APP_URL does not end with a slash, and media_path does not start with one for clean join
-            base_url = Config.REPLIT_APP_URL.strip('/')
-            # Assuming media_path is stored like 'media/filename.ext' and served under /static/
-            # So, the full URL would be REPLIT_APP_URL/static/media/filename.ext
-            # However, media_path from DB already includes 'media/', so it's REPLIT_APP_URL/static/ + media_path
-            # Let's assume UPLOAD_FOLDER is 'static/media' relative to app root, and media_path is 'media/file.ext'
-            # The URL served by Flask for static files is typically /static/path_within_static_folder
-            # If media_path is 'media/image.jpg', then static path is 'media/image.jpg'
-            # and Config.UPLOAD_FOLDER is 'static/media'
-            # So, url_for('static', filename=media_path) would generate /static/media/image.jpg
-            # We need the absolute URL.
+        if media_path_db and media_type:
+            # Construct the full disk path inside the container
+            # Config.UPLOAD_FOLDER should be the absolute path to 'static/media' inside the container, e.g., /app/static/media
+            # media_path_db is 'media/filename.mp3'. We need just 'filename.mp3' to join with UPLOAD_FOLDER.
+            filename_only = os.path.basename(media_path_db)
+            full_disk_path = os.path.join(Config.UPLOAD_FOLDER, filename_only)
 
-            # If media_path is "media/image.jpg", and UPLOAD_FOLDER = "static/media"
-            # then the file is at "static/media/image.jpg" if media_path was "image.jpg"
-            # Or if media_path is "media/image.jpg", then it's already relative to "static/"
-            # Let's assume media_path stored in DB is the path *within* the UPLOAD_FOLDER's 'media' part.
-            # e.g. if UPLOAD_FOLDER = 'static/media', and file is 'image.jpg', media_path in DB is 'image.jpg'
-            # This needs clarification based on how media_path is stored by admin_panel.py
-            # From admin_panel.py: media_path = os.path.join('media', filename)
-            # And UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'media')
-            # So, if filename is 'foo.jpg', media_path in DB is 'media/foo.jpg'.
-            # The static URL for this would be base_url + /static/media/foo.jpg
-            # So, it should be base_url + /static/ + media_path
+            logger.info(f"Attempting to send media DIRECTLY for question {question_data.get('id')}: type={media_type}, disk_path={full_disk_path}")
 
-            # Corrected URL construction:
-            # media_path in DB is 'media/filename.ext'
-            # Flask serves files from 'static' folder. So URL is 'REPLIT_APP_URL/static/media/filename.ext'
-            # This means we need to append 'static/' before media_path if it's not already there.
-            # Given media_path is 'media/file.ext', the static URL is Config.REPLIT_APP_URL/static/ + media_path
-
-            # Simpler: Assume REPLIT_APP_URL is the base, and /static/ is automatically handled by Flask's static serving.
-            # The path stored in DB is `media/filename.ext`.
-            # The actual files are in `static/media/filename.ext`.
-            # So the URL is `Config.REPLIT_APP_URL/static/media/filename.ext`.
-            # This can be constructed as: f"{base_url}/static/{media_path}"
-            # Ensure media_path doesn't start with / if base_url ends with / or vice-versa.
-            # media_path is 'media/file.jpg'
-            media_url = f"{base_url}/static/{media_path}"
-
-            logger.info(f"Attempting to send media for question {question_data.get('id')}: type={media_type}, url={media_url}")
-
-            if media_type == 'image':
-                sent_message = bot.send_photo(user_id, photo=media_url, caption=final_text, reply_markup=markup)
-            elif media_type == 'audio':
-                sent_message = bot.send_audio(user_id, audio=media_url, caption=final_text, reply_markup=markup)
-            elif media_type == 'video':
-                sent_message = bot.send_video(user_id, video=media_url, caption=final_text, reply_markup=markup)
+            if os.path.exists(full_disk_path):
+                with open(full_disk_path, 'rb') as media_file_obj:
+                    if media_type == 'image':
+                        sent_message = bot.send_photo(user_id, photo=media_file_obj, caption=final_text, reply_markup=markup)
+                    elif media_type == 'audio':
+                        sent_message = bot.send_audio(user_id, audio=media_file_obj, caption=final_text, reply_markup=markup)
+                    elif media_type == 'video':
+                        sent_message = bot.send_video(user_id, video=media_file_obj, caption=final_text, reply_markup=markup)
+                    else:
+                        logger.warning(f"Unsupported media type '{media_type}' for direct send. Question {question_data.get('id')}. Sending as text.")
+                        sent_message = bot.send_message(user_id, final_text, reply_markup=markup)
             else:
-                logger.warning(f"Unsupported media type '{media_type}' for question {question_data.get('id')}. Sending as text.")
-                sent_message = bot.send_message(user_id, final_text, reply_markup=markup)
+                logger.error(f"Media file NOT FOUND at {full_disk_path} for direct send. Question {question_data.get('id')}. Sending as text.")
+                sent_message = bot.send_message(user_id, final_text, reply_markup=markup) # Fallback to text
         else:
-            if media_path and not Config.REPLIT_APP_URL:
-                 logger.warning(f"Media path exists for question {question_data.get('id')} but REPLIT_APP_URL is not configured. Sending as text.")
+            # No media path or type, send as text only
             sent_message = bot.send_message(user_id, final_text, reply_markup=markup)
 
         if sent_message:
-            user_quiz_sessions[user_id] = sent_message.message_id # Store message_id for editing
-        else: # Should not happen if logic is correct, but as a safeguard
-            logger.error(f"sent_message was None after trying to send question (ID: {question_data.get('id')}) to user {user_id}")
+            user_quiz_sessions[user_id] = sent_message.message_id
+        else:
+            # This case should ideally be handled by the fallbacks above, but log if it somehow occurs
+            logger.error(f"sent_message was None after trying to send question (ID: {question_data.get('id')}) to user {user_id}, even after fallbacks.")
+            # As a last resort, try sending a simple text message if nothing else worked
+            bot.send_message(user_id, "خطایی در نمایش سوال رخ داد. لطفاً دوباره تلاش کنید یا به پشتیبانی اطلاع دهید.")
 
 
     except telebot.apihelper.ApiTelegramException as e:
-        logger.error(f"API Error sending question ID {question_data.get('id')} to {user_id} (media_url: {media_url if 'media_url' in locals() else 'N/A'}): {e}", exc_info=True)
+        # Log API errors specifically, including if it was a direct send attempt
+        media_info_for_log = f"(direct send attempt, path: {full_disk_path if 'full_disk_path' in locals() else 'N/A'})" if media_path_db and media_type else "(text only send attempt)"
+        logger.error(f"API Error sending question ID {question_data.get('id')} to {user_id} {media_info_for_log}: {e}", exc_info=True)
         if "bot was blocked by the user" in str(e).lower():
             logger.warning(f"Bot was blocked by user {user_id}. Cleaning up quiz state.")
-            delete_quiz_state(user_id) # Clean up state for blocked user
-        # else: send some generic error to user? Or just log.
-    except Exception as e:
-        logger.error(f"Unexpected error sending question ID {question_data.get('id')} to {user_id}: {e}", exc_info=True)
+            delete_quiz_state(user_id)
+        # If sending media failed, try sending as text only as a fallback if not already done
+        elif media_path_db and media_type: # Only if media send was attempted and failed
+            logger.info(f"Fallback: Sending question ID {question_data.get('id')} as text only to user {user_id} after media send API error.")
+            try:
+                sent_message = bot.send_message(user_id, final_text, reply_markup=markup)
+                if sent_message: user_quiz_sessions[user_id] = sent_message.message_id
+            except Exception as fallback_e:
+                logger.error(f"Error sending fallback text for question ID {question_data.get('id')} to {user_id}: {fallback_e}", exc_info=True)
+
+    except FileNotFoundError: # Specifically for direct send
+        logger.error(f"Media file NOT FOUND at {full_disk_path if 'full_disk_path' in locals() else 'Unknown path'} for direct send. Question {question_data.get('id')}. Fallback to text.")
+        try:
+            sent_message = bot.send_message(user_id, final_text, reply_markup=markup)
+            if sent_message: user_quiz_sessions[user_id] = sent_message.message_id
+        except Exception as fallback_e:
+            logger.error(f"Error sending fallback text for question ID {question_data.get('id')} after FileNotFoundError: {fallback_e}", exc_info=True)
+
+    except Exception as e: # Catch-all for other unexpected errors
+        media_info_for_log = f"(direct send attempt, path: {full_disk_path if 'full_disk_path' in locals() else 'N/A'})" if media_path_db and media_type else "(text only send attempt)"
+        logger.error(f"Unexpected error sending question ID {question_data.get('id')} to {user_id} {media_info_for_log}: {e}", exc_info=True)
+        # Fallback to text on other errors if media was involved
+        if media_path_db and media_type:
+            logger.info(f"Fallback: Sending question ID {question_data.get('id')} as text only to user {user_id} after unexpected error.")
+            try:
+                sent_message = bot.send_message(user_id, final_text, reply_markup=markup)
+                if sent_message: user_quiz_sessions[user_id] = sent_message.message_id
+            except Exception as fallback_e:
+                logger.error(f"Error sending fallback text for question ID {question_data.get('id')} after unexpected error: {fallback_e}", exc_info=True)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('answer_'))

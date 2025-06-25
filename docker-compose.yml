@@ -1,3 +1,4 @@
+# نسخه نهایی، پایدار و پیشنهادی
 services:
   db:
     image: mysql:8.0
@@ -10,10 +11,10 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
-      # والیوم اول: برای ذخیره دائمی داده‌های دیتابیس پس از ساخته شدن
+      # فقط این والیوم برای ذخیره دائمی داده‌های دیتابیس استفاده می‌شود
       - db_data:/var/lib/mysql
-      # والیوم دوم: برای خواندن و اجرای فایل quiz.sql در هنگام ساخت اولیه
-      - ./data/quiz.sql:/docker-entrypoint-initdb.d/init.sql
+      # دیگر فایل init.sql را اینجا مپ نمی‌کنیم، ایجاد جداول توسط کد پایتون انجام می‌شود
+      # - ./data/quiz.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - quiz_network
     healthcheck:
@@ -21,36 +22,52 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s # زمان بیشتری برای راه‌اندازی اولیه MySQL در نظر گرفته شده
+      start_period: 30s # زمان کافی برای راه‌اندازی MySQL
 
-  app:
+  web:
     build: .
-    container_name: quiz-app
+    container_name: quiz-web
     restart: always
+    # command: ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120", "admin_panel:app"]
+    # از gunicorn.conf.py استفاده می‌کنیم که wsgi:application را هدف قرار می‌دهد
+    command: ["gunicorn", "-c", "./gunicorn.conf.py", "wsgi:application"]
     depends_on:
       db:
         condition: service_healthy
-    env_file:
-      - .env
     ports:
       - "8080:8080"
+    volumes:
+      # فقط پوشه مدیا را برای پایداری فایل‌های آپلود شده به اشتراک می‌گذاریم
+      # این volume باید توسط سرویس bot هم استفاده شود
+      - media_data:/app/static/media
+      # برای توسعه، می‌توانید کد را هم مپ کنید، اما برای پروداکشن بهتر است در ایمیج باشد
+      # - .:/app
+    env_file:
+      - .env
     networks:
       - quiz_network
+
+  bot:
+    build: . # از همان Dockerfile برای ساخت ایمیج استفاده می‌کند
+    container_name: quiz-bot-instance
+    restart: always
+    command: ["python", "run_bot.py"] # اسکریپت جدید برای اجرای ربات
+    depends_on:
+      db:
+        condition: service_healthy # ربات هم باید منتظر آماده شدن دیتابیس بماند
     volumes:
-      # مپ کردن کل پروژه برای توسعه آسان‌تر (تغییرات کد فوراً در کانتینر منعکس می‌شوند)
-      # این خط را برای محیط پروداکشن می‌توانید کامنت کنید اگر نمی‌خواهید کد روی هاست مستقیماً در کانتینر باشد.
-      - .:/app
-      # مپ کردن پوشه آپلود مدیا به هاست برای پایداری فایل‌ها و دسترسی مشترک
-      # مسیر هاست: ./static/media (نسبت به docker-compose.yml)
-      # مسیر کانتینر: /app/static/media (جایی که Flask فایل‌ها را ذخیره و جستجو می‌کند)
-      - ./static/media:/app/static/media
-    # environment:
-      # PYTHONUNBUFFERED: 1 # این معمولا در Dockerfile بهتر است تنظیم شود اگر نیاز باشد
-      # GUNICORN_WORKERS: 1 # برای تست مشکل timeout، تعداد worker ها را در gunicorn.conf.py روی 1 تنظیم کردیم
+       # دسترسی به پوشه مدیا در صورت نیاز ربات به خواندن فایل (برای ارسال به کاربر)
+      - media_data:/app/static/media # استفاده از همان volume مشترک
+      # - .:/app # اگر ربات نیاز به خواندن مستقیم کدها از هاست دارد (برای توسعه)
+    env_file:
+      - .env
+    networks:
+      - quiz_network
 
 volumes:
-  db_data: # تعریف named volume برای پایداری داده‌های MySQL
+  db_data:
+  media_data: # والیوم مشترک برای فایل‌های رسانه‌ای
 
 networks:
   quiz_network:
-    driver: bridge # استفاده از bridge network پیش‌فرض
+    driver: bridge

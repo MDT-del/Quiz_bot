@@ -511,18 +511,74 @@ def send_question_to_user(user_id, question_data):
     final_text = f"{time_left_str}{header}\n\n{question_text_escaped}"
 
     try:
-        # TODO: Implement media sending if 'media_path' and 'media_type' exist in question_data
-        # For now, only text questions are handled by this specific function part
-        # if question_data.get('media_path') and question_data.get('media_type'):
-        #     # Construct full media URL or path
-        #     # Send appropriate bot.send_photo, bot.send_audio, etc. with caption=final_text
-        #     pass
-        # else:
-        sent_message = bot.send_message(user_id, final_text, reply_markup=markup)
-        user_quiz_sessions[user_id] = sent_message.message_id # Store message_id for editing
+        media_path = question_data.get('media_path')
+        media_type = question_data.get('media_type')
+        sent_message = None
+
+        if media_path and media_type and Config.REPLIT_APP_URL:
+            # Ensure REPLIT_APP_URL does not end with a slash, and media_path does not start with one for clean join
+            base_url = Config.REPLIT_APP_URL.strip('/')
+            # Assuming media_path is stored like 'media/filename.ext' and served under /static/
+            # So, the full URL would be REPLIT_APP_URL/static/media/filename.ext
+            # However, media_path from DB already includes 'media/', so it's REPLIT_APP_URL/static/ + media_path
+            # Let's assume UPLOAD_FOLDER is 'static/media' relative to app root, and media_path is 'media/file.ext'
+            # The URL served by Flask for static files is typically /static/path_within_static_folder
+            # If media_path is 'media/image.jpg', then static path is 'media/image.jpg'
+            # and Config.UPLOAD_FOLDER is 'static/media'
+            # So, url_for('static', filename=media_path) would generate /static/media/image.jpg
+            # We need the absolute URL.
+
+            # If media_path is "media/image.jpg", and UPLOAD_FOLDER = "static/media"
+            # then the file is at "static/media/image.jpg" if media_path was "image.jpg"
+            # Or if media_path is "media/image.jpg", then it's already relative to "static/"
+            # Let's assume media_path stored in DB is the path *within* the UPLOAD_FOLDER's 'media' part.
+            # e.g. if UPLOAD_FOLDER = 'static/media', and file is 'image.jpg', media_path in DB is 'image.jpg'
+            # This needs clarification based on how media_path is stored by admin_panel.py
+            # From admin_panel.py: media_path = os.path.join('media', filename)
+            # And UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'media')
+            # So, if filename is 'foo.jpg', media_path in DB is 'media/foo.jpg'.
+            # The static URL for this would be base_url + /static/media/foo.jpg
+            # So, it should be base_url + /static/ + media_path
+
+            # Corrected URL construction:
+            # media_path in DB is 'media/filename.ext'
+            # Flask serves files from 'static' folder. So URL is 'REPLIT_APP_URL/static/media/filename.ext'
+            # This means we need to append 'static/' before media_path if it's not already there.
+            # Given media_path is 'media/file.ext', the static URL is Config.REPLIT_APP_URL/static/ + media_path
+
+            # Simpler: Assume REPLIT_APP_URL is the base, and /static/ is automatically handled by Flask's static serving.
+            # The path stored in DB is `media/filename.ext`.
+            # The actual files are in `static/media/filename.ext`.
+            # So the URL is `Config.REPLIT_APP_URL/static/media/filename.ext`.
+            # This can be constructed as: f"{base_url}/static/{media_path}"
+            # Ensure media_path doesn't start with / if base_url ends with / or vice-versa.
+            # media_path is 'media/file.jpg'
+            media_url = f"{base_url}/static/{media_path}"
+
+            logger.info(f"Attempting to send media for question {question_data.get('id')}: type={media_type}, url={media_url}")
+
+            if media_type == 'image':
+                sent_message = bot.send_photo(user_id, photo=media_url, caption=final_text, reply_markup=markup)
+            elif media_type == 'audio':
+                sent_message = bot.send_audio(user_id, audio=media_url, caption=final_text, reply_markup=markup)
+            elif media_type == 'video':
+                sent_message = bot.send_video(user_id, video=media_url, caption=final_text, reply_markup=markup)
+            else:
+                logger.warning(f"Unsupported media type '{media_type}' for question {question_data.get('id')}. Sending as text.")
+                sent_message = bot.send_message(user_id, final_text, reply_markup=markup)
+        else:
+            if media_path and not Config.REPLIT_APP_URL:
+                 logger.warning(f"Media path exists for question {question_data.get('id')} but REPLIT_APP_URL is not configured. Sending as text.")
+            sent_message = bot.send_message(user_id, final_text, reply_markup=markup)
+
+        if sent_message:
+            user_quiz_sessions[user_id] = sent_message.message_id # Store message_id for editing
+        else: # Should not happen if logic is correct, but as a safeguard
+            logger.error(f"sent_message was None after trying to send question (ID: {question_data.get('id')}) to user {user_id}")
+
 
     except telebot.apihelper.ApiTelegramException as e:
-        logger.error(f"API Error sending question ID {question_data.get('id')} to {user_id}: {e}", exc_info=True)
+        logger.error(f"API Error sending question ID {question_data.get('id')} to {user_id} (media_url: {media_url if 'media_url' in locals() else 'N/A'}): {e}", exc_info=True)
         if "bot was blocked by the user" in str(e).lower():
             logger.warning(f"Bot was blocked by user {user_id}. Cleaning up quiz state.")
             delete_quiz_state(user_id) # Clean up state for blocked user

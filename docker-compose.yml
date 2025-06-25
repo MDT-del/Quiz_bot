@@ -13,9 +13,6 @@ services:
       # والیوم اول: برای ذخیره دائمی داده‌های دیتابیس پس از ساخته شدن
       - db_data:/var/lib/mysql
       # والیوم دوم: برای خواندن و اجرای فایل quiz.sql در هنگام ساخت اولیه
-      # این باید به فایل quiz.sql اشاره کند، نه کل پوشه data اگر فقط یک فایل دارید
-      # اگر چندین .sql, .sh, .sql.gz دارید، پوشه صحیح است.
-      # برای یک فایل واحد، بهتر است مسیر دقیق فایل را مپ کنید:
       - ./data/quiz.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - quiz_network
@@ -24,7 +21,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 30s # زمان بیشتری برای راه‌اندازی اولیه MySQL در نظر گرفته شده
 
   app:
     build: .
@@ -35,16 +32,25 @@ services:
         condition: service_healthy
     env_file:
       - .env
-    # چون پروژه شما بخش وب (admin_panel) دارد، پورت‌ها را باز می‌کنیم
     ports:
-      - "8080:8080" # پورت پیش‌فرض Flask که در config.py هم استفاده شده
+      - "8080:8080"
     networks:
       - quiz_network
-    # environment: # اگر از env_file استفاده می‌کنید، این بخش ممکن است لازم نباشد مگر برای override یا مقادیر غیرحساس
-      # - PYTHONUNBUFFERED=1 # این معمولا در Dockerfile تنظیم می‌شود
+    volumes:
+      # مپ کردن کل پروژه برای توسعه آسان‌تر (تغییرات کد فوراً در کانتینر منعکس می‌شوند)
+      # این خط را برای محیط پروداکشن می‌توانید کامنت کنید اگر نمی‌خواهید کد روی هاست مستقیماً در کانتینر باشد.
+      - .:/app
+      # مپ کردن پوشه آپلود مدیا به هاست برای پایداری فایل‌ها و دسترسی مشترک
+      # مسیر هاست: ./static/media (نسبت به docker-compose.yml)
+      # مسیر کانتینر: /app/static/media (جایی که Flask فایل‌ها را ذخیره و جستجو می‌کند)
+      - ./static/media:/app/static/media
+    # environment:
+      # PYTHONUNBUFFERED: 1 # این معمولا در Dockerfile بهتر است تنظیم شود اگر نیاز باشد
+      # GUNICORN_WORKERS: 1 # برای تست مشکل timeout، تعداد worker ها را در gunicorn.conf.py روی 1 تنظیم کردیم
 
 volumes:
-  db_data:
+  db_data: # تعریف named volume برای پایداری داده‌های MySQL
 
 networks:
   quiz_network:
+    driver: bridge # استفاده از bridge network پیش‌فرض

@@ -10,11 +10,11 @@ from database import (add_question, get_questions, create_tables,
                       get_recent_quiz_count, update_payment_status,
                       get_payment_by_authority)
 # from database import get_all_users, set_user_premium # Removed duplicate import
-from bot import send_payment_confirmation, send_admin_response_to_user
+from bot import send_payment_confirmation, send_admin_response_to_user, send_main_keyboard
 # send_main_keyboard might not be needed in admin_panel, can be removed if unused.
 # For now, keeping it to avoid breaking if it's called somewhere unexpectedly, but should be reviewed.
-from bot import send_main_keyboard
-from zarinpal_payment.zarinpal import ZarinPal # Assuming this is a custom or third-party library path
+# from zarinpal_payment.zarinpal import ZarinPal # Removed as PHP will handle Zarinpal interaction
+from flask import jsonify # Added for API responses
 import jdatetime
 from datetime import datetime
 from config import Config
@@ -518,77 +518,128 @@ def toggle_premium(user_id):
     return redirect(url_for('manage_users'))
 
 
-@app.route('/verify_payment')
-def verify_payment():
-    authority = request.args.get('Authority')
-    status = request.args.get('Status')
+# @app.route('/verify_payment') # This route is now handled by PHP and callback below
+# def verify_payment():
+#     authority = request.args.get('Authority')
+#     status = request.args.get('Status')
 
-    if not authority or not status:
-        return "<h1>اطلاعات پرداخت ناقص است.</h1>"
+#     if not authority or not status:
+#         return "<h1>اطلاعات پرداخت ناقص است.</h1>"
 
-    payment_record = get_payment_by_authority(authority)
+#     payment_record = get_payment_by_authority(authority)
+#     if not payment_record:
+#         return "<h1>سفارش یافت نشد!</h1>"
+
+#     if status == 'NOK':
+#         update_payment_status(authority, 'failed')
+#         return "<h1>پرداخت ناموفق بود یا توسط شما لغو شد.</h1>"
+
+#     if status == 'OK':
+#         amount = payment_record['amount']
+#         # Python-based Zarinpal verification would go here if not using PHP
+#         # For now, this route is unused if PHP handles verification and calls back to /api/php/payment-callback
+#         logger.info(f"Python /verify_payment route hit for authority {authority}, but PHP flow is expected.")
+#         # ... (Logic for python-based verification was here) ...
+#         # This part should be removed or adapted if PHP is the sole verifier.
+#         # For now, assume PHP verify.php will call /api/php/payment-callback
+
+#         # If this route were to be used, it would need to:
+#         # 1. Verify with Zarinpal using a Python library (if one was used)
+#         # 2. Update payment status
+#         # 3. Set user premium
+#         # 4. Send confirmation
+#         # 5. Return success/failure page
+#         # Since we removed Zarinpal Python lib and depend on PHP, this route is effectively bypassed.
+#         return "<h1>این مسیر تایید پرداخت دیگر فعال نیست. تایید توسط سیستم دیگر انجام می‌شود.</h1>"
+
+#     return "<h1>وضعیت نامشخص.</h1>"
+
+
+@app.route('/api/php/payment-callback', methods=['POST'])
+def php_payment_callback():
+    """
+    این API Endpoint توسط اسکریپت payment/verify.php فراخوانی می‌شود.
+    نتیجه تراکنش را دریافت و اشتراک کاربر را فعال می‌کند.
+    """
+    # 1. بررسی کلید مخفی برای امنیت
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or 'Bearer ' not in auth_header:
+        logger.warning("PHP Callback: Missing or invalid Authorization header.")
+        return jsonify({"status": "error", "message": "Unauthorized - Missing or invalid auth header"}), 401
+
+    token = auth_header.split('Bearer ')[1]
+    if token != Config.PHP_SECRET_KEY:
+        logger.warning(f"PHP Callback: Invalid secret key. Received: {token[:10]}...") # Log a snippet for debug
+        return jsonify({"status": "error", "message": "Forbidden - Invalid secret key"}), 403
+
+    # 2. دریافت و پردازش داده‌های JSON
+    data = request.json
+    if not data:
+        logger.error("PHP Callback: No JSON data received.")
+        return jsonify({"status": "error", "message": "No data received"}), 400
+
+    order_id_from_php = data.get('order_id') # This is the authority initially created by bot.py
+    ref_id_zarinpal = data.get('ref_id') # This is Zarinpal's reference ID after successful verification
+    status_from_php = data.get('status')
+    amount_from_php = data.get('amount')
+    # duration_days = data.get('duration') # Duration should be passed from pay.php to verify.php and then here.
+                                         # For now, let's assume a default or get it from payment_record if stored.
+
+    logger.info(f"PHP Callback received: order_id={order_id_from_php}, status={status_from_php}, ref_id={ref_id_zarinpal}, amount={amount_from_php}")
+
+    if not order_id_from_php or status_from_php != 'completed' or not ref_id_zarinpal:
+        logger.warning(f"PHP Callback: Incomplete or non-completed data received: {data}")
+        return jsonify({"status": "error", "message": "Incomplete or non-completed data"}), 400
+
+    payment_record = get_payment_by_authority(order_id_from_php)
     if not payment_record:
-        return "<h1>سفارش یافت نشد!</h1>"
+        logger.error(f"PHP Callback: Payment record not found for order_id (authority) {order_id_from_php}")
+        return jsonify({"status": "error", "message": "Order not found in DB"}), 404
 
-    if status == 'NOK':
-        update_payment_status(authority, 'failed')
-        return "<h1>پرداخت ناموفق بود یا توسط شما لغو شد.</h1>"
+    # اگر پرداخت قبلاً تکمیل شده، دوباره کاری نکن
+    if payment_record['status'] == 'completed':
+        logger.info(f"PHP Callback: Payment for order_id {order_id_from_php} already marked as completed.")
+        return jsonify({"status": "already_completed", "message": "Payment already processed"})
 
-    if status == 'OK':
-        amount = payment_record['amount']
+    # بررسی مبلغ (اختیاری اما توصیه شده)
+    if int(payment_record['amount']) != int(amount_from_php):
+        logger.error(f"PHP Callback: Amount mismatch for order_id {order_id_from_php}. Expected {payment_record['amount']}, got {amount_from_php}.")
+        # Potentially mark as suspicious or requires manual check
+        update_payment_status(order_id_from_php, 'amount_mismatch')
+        return jsonify({"status": "error", "message": "Amount mismatch"}), 400
 
-        # راه‌اندازی کلاس زرین‌پال (callback_url اینجا نیاز نیست ولی برای هماهنگی می‌نویسیم)
-        zarinpal = ZarinPal(
-            merchant_id=Config.ZARINPAL_MERCHANT_CODE,
-            callback_url=f"{Config.REPLIT_APP_URL}/verify_payment",
-            sandbox=False)
+    try:
+        user_id = payment_record['user_id']
+        #  TODO: Get duration_days. For now, let's use a default.
+        #  This should ideally be part of the payment_record or passed securely from pay.php -> verify.php -> here.
+        #  If it was passed in payment_url from bot.py to pay.php, it should be retrieved.
+        #  Example: payment_url = (f"...&duration={duration_days}") in bot.py
+        #  Then pay.php reads $_GET['duration'] and passes it to verify.php
+        #  Then verify.php includes it in the JSON payload to this callback.
+        #  For now, using a default of 30 days.
+        duration_days = data.get('duration', 30)
+        if not isinstance(duration_days, int) or duration_days <=0:
+            duration_days = 30 # Fallback to 30 days if invalid duration received
+            logger.warning(f"PHP Callback: Invalid or missing duration for order_id {order_id_from_php}. Defaulting to 30 days.")
 
-        try:
-            # --- تغییر ۴: نام متد به payment_verify تغییر کرده است ---
-            verify_response = zarinpal.payment_verify(amount=amount,
-                                                      authority=authority)
 
-            # ساختار پاسخ تایید را بررسی می‌کنیم (ممکن است داخل data باشد)
-            # با یک print ساده می‌توانید ساختار دقیق آن را ببینید: print(verify_response)
-            verify_data = verify_response.get("data", {})
+        # 3. آپدیت دیتابیس و فعال‌سازی اشتراک
+        update_payment_status(order_id_from_php, 'completed') # Mark as completed
+        set_user_premium(user_id, duration_days=duration_days)
 
-            if verify_data.get("code") in [100, 101
-                                           ]:  # 100=موفق, 101=قبلا تایید شده
-                user_id = payment_record['user_id']
-                duration = 30
-                ref_id = verify_data.get('ref_id', 'N/A')
+        # 4. ارسال پیام تایید به کاربر از طریق ربات
+        send_payment_confirmation(user_id, duration_days, amount_paid=amount_from_php) # Pass amount for richer message
 
-                # به‌روزرسانی وضعیت در دیتابیس
-                update_payment_status(authority, 'completed')
+        logger.info(f"PHP Callback: Payment processed successfully for user {user_id}, order_id {order_id_from_php}, Zarinpal ref_id {ref_id_zarinpal}")
+        return jsonify({"status": "success", "message": "Payment processed and premium activated"})
 
-                # فعال کردن اشتراک کاربر
-                set_user_premium(user_id, duration_days=duration)
-
-                # ارسال پیام تایید به کاربر از طریق ربات
-                send_payment_confirmation(user_id, duration)
-
-                return f"""
-                    <html><head><title>تایید پرداخت</title></head>
-                    <body style='font-family: sans-serif; text-align: center; padding-top: 50px;'>
-                        <h1>پرداخت شما با موفقیت تایید شد.</h1>
-                        <p>اشتراک ویژه شما فعال گردید. می‌توانید به ربات بازگردید.</p>
-                        <p><small>شماره پیگیری: {ref_id}</small></p>
-                    </body></html>
-                    """
-            else:
-                error_message = verify_response.get("errors", {}).get(
-                    "message", "خطای نامشخص")
-                update_payment_status(authority, 'verification_failed')
-                return f"<h1>خطا در تایید پرداخت: {error_message} (کد: {verify_data.get('code')})</h1>"
-
-        except Exception as e:
-            return f"<h1>خطای پیش‌بینی نشده در سیستم: {e}</h1>"
-
-    return "<h1>وضعیت نامشخص.</h1>"
+    except Exception as e:
+        logger.error(f"Error processing PHP callback for order_id {order_id_from_php}: {e}", exc_info=True)
+        # Optionally, set status to 'callback_error' or similar
+        return jsonify({"status": "error", "message": "Internal server error during callback processing"}), 500
 
 
 if __name__ == '__main__':
     pass
 
-print("--- admin_panel.py: File imported and setup complete ---"
-      )  # این خط را اضافه کنید
+print("--- admin_panel.py: File imported and setup complete ---")

@@ -28,11 +28,13 @@ COPY . .
 # If it's created by the app, this line might not be needed.
 # For now, we assume the app or Flask handles its creation if needed.
 
-# Expose the port the app runs on (Gunicorn will listen on this port inside the container)
+# Copy Gunicorn config file
+COPY gunicorn.conf.py /app/gunicorn.conf.py
+
+# Expose the port the app runs on (Gunicorn will listen on this port as defined in gunicorn.conf.py or CMD)
 EXPOSE 8080
 
-# Define the command to run the application using Gunicorn
+# Define the command to run the application using Gunicorn with the config file
 # Gunicorn will look for an 'app' object in a module named 'wsgi' (wsgi.py)
-# Workers: Adjust based on your server's CPU cores (e.g., 2 * num_cores + 1)
-# Timeout: Increase if you have long-running requests
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "--timeout", "120", "wsgi:app"]
+# Settings like bind, workers, timeout are now primarily managed in gunicorn.conf.py
+CMD ["gunicorn", "-c", "./gunicorn.conf.py", "wsgi:app"]

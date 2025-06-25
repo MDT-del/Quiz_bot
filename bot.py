@@ -32,6 +32,7 @@ import os
 import html # For escaping user input if ever needed in HTML/Markdown contexts
 import random # If any randomization is needed (e.g. for question order, though DB handles RAND() now)
 import uuid # For generating unique IDs like payment authority
+import json # Added for parsing options if they are string
 import logging
 
 # Configure logger for this module
@@ -939,5 +940,3 @@ logger.info("Bot instance created and handlers configured.")
 
 # Note: bot.infinity_polling() is typically called from main.py in a separate thread.
 # Do not call it here if main.py is handling the bot's execution.
-
-[end of bot.py]

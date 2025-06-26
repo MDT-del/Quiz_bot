@@ -5,7 +5,8 @@ from database import (
     get_question_by_id, get_top_users, save_support_message,
     get_comprehensive_questions, save_quiz_state, get_quiz_state, delete_quiz_state,
     is_user_premium, set_user_premium, get_questions_by_skill_and_level,
-    get_user_premium_expiry, create_payment_record
+    get_user_premium_expiry
+    # create_payment_record, # دیگر برای پرداخت کارت به کارت لازم نیست
 )
 from config import Config
 import traceback
@@ -18,28 +19,18 @@ import random
 import uuid
 import json
 import logging
-# from telebot.formatting import escape_markdown # Removed, using custom v2 escaper
 
-logger = logging.getLogger("bot") # Consistent logger name
-
-bot = telebot.TeleBot(Config.TOKEN, parse_mode='Markdown')
+logger = logging.getLogger("bot")
+bot = telebot.TeleBot(Config.TOKEN)
 
 support_sessions = {}
 user_quiz_sessions = {}
 
 # --- MarkdownV2 Escaper ---
 def escape_markdown_v2(text: str) -> str:
-    """
-    Escapes text for Telegram MarkdownV2.
-    Characters to escape: _ * [ ] ( ) ~ ` > # + - = | { } . !
-    """
     if not isinstance(text, str):
         return ''
-    # Order of replacement can be important if escape characters themselves are present in escape_chars.
-    # However, for simple backslash-escaping, direct replacement is usually fine.
     escape_chars = r'_*[]()~`>#+-=|{}.!'
-    # Must escape the escape character itself if it's in the text and not part of an escape sequence.
-    # For simplicity, we assume backslash is not a problematic input character that needs pre-escaping here.
     return "".join(f'\\{char}' if char in escape_chars else char for char in text)
 
 # --- بخش ۱: مدیریت منوها ---
@@ -51,7 +42,7 @@ def send_main_keyboard(user_id, text="به منوی اصلی خوش آمدید!"
     btn_help = types.KeyboardButton("❓ راهنما")
     markup.add(btn_quiz, btn_premium, btn_support, btn_help)
     try:
-        bot.send_message(user_id, text, reply_markup=markup)
+        bot.send_message(user_id, text, reply_markup=markup, parse_mode=None)
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Error sending main keyboard to {user_id}: {e}", exc_info=True)
 
@@ -69,7 +60,7 @@ def handle_quiz_menu(message):
     try:
         bot.send_message(message.chat.id,
                          "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
-                         reply_markup=markup)
+                         reply_markup=markup, parse_mode=None)
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Error sending quiz menu to {message.chat.id}: {e}", exc_info=True)
 
@@ -97,7 +88,7 @@ def handle_start(message):
                 types.InlineKeyboardButton("✅ بررسی عضویت", callback_data="check_membership")
             )
             welcome_text += "لطفاً برای استفاده از ربات، ابتدا در کانال ما عضو شوید و سپس دکمه بررسی عضویت را بزنید:"
-            bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode=None) # Send welcome as plain
+            bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode=None)
         except Exception as e:
             logger.error(f"Error preparing or sending channel membership message for {user.id}: {e}", exc_info=True)
             bot.send_message(message.chat.id, "به ربات ما خوش آمدید! مشکلی در نمایش لینک کانال پیش آمده، اما می‌توانید از سایر امکانات استفاده کنید.", parse_mode=None)
@@ -108,8 +99,9 @@ def handle_start(message):
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_membership")
 def check_membership_callback(call):
-    user_id = call.from_user.id
-    add_user(user_id, call.from_user.username, call.from_user.first_name, call.from_user.last_name)
+    user = call.from_user
+    add_user(user.id, user.username, user.first_name, user.last_name)
+    user_id = user.id
     if not Config.CHANNEL_ID:
         bot.answer_callback_query(call.id, "بررسی عضویت نیاز نیست چون کانالی تنظیم نشده.")
         send_main_keyboard(user_id)
@@ -118,7 +110,8 @@ def check_membership_callback(call):
         chat_member = bot.get_chat_member(Config.CHANNEL_ID, user_id)
         if chat_member.status in ['member', 'administrator', 'creator']:
             bot.answer_callback_query(call.id, "عضویت شما تایید شد! ✅")
-            bot.delete_message(call.message.chat.id, call.message.message_id)
+            try: bot.delete_message(call.message.chat.id, call.message.message_id)
+            except: pass
             send_main_keyboard(user_id)
         else:
             bot.answer_callback_query(call.id, "❌ شما هنوز در کانال عضو نشده‌اید. لطفاً ابتدا عضو شوید.", show_alert=True)
@@ -138,7 +131,7 @@ def handle_premium_account(message):
     add_user(user.id, user.username, user.first_name, user.last_name)
     user_id = user.id
     premium_text = ""
-    markup = None
+    markup = types.InlineKeyboardMarkup()
 
     if is_user_premium(user_id):
         expiry_date_gregorian = get_user_premium_expiry(user_id)
@@ -161,92 +154,81 @@ def handle_premium_account(message):
             "با ارتقاء به حساب کاربری ویژه، از قابلیت‌های انحصاری زیر بهره‌مند شوید:\n"
             "\\- شرکت *نامحدود* در تمام آزمون‌ها\\.\n"
             "\\- دسترسی کامل به تمام *آزمون‌های مهارتی*\\.\n"
-            "\\- مشاهده *پاسخ صحیح* پس از جواب دادن به هر سوال\\.\n"
+            "\\- مشاهده *پاسخ صحیح* پس از جواب دادن به هر سوال\\.\n\n"
+            "لطفاً برای فعال‌سازی، یکی از طرح‌های زیر را انتخاب کنید:"
         )
-        if Config.REPLIT_APP_URL and Config.ZARINPAL_MERCHANT_CODE:
-            markup = types.InlineKeyboardMarkup()
-            price_30_days = 10000
-            price_90_days = 25000
-            markup.add(
-                types.InlineKeyboardButton(
-                    f"💳 اشتراک ۳۰ روزه ({price_30_days:,} تومان)",
-                    callback_data=f"buy_premium_30_{price_30_days}")
-            )
-            markup.add(
-                types.InlineKeyboardButton(
-                    f"💳 اشتراک ۹۰ روزه ({price_90_days:,} تومان)",
-                    callback_data=f"buy_premium_90_{price_90_days}")
-            )
-        else:
-            premium_text += "\n\n⚠️ سیستم پرداخت در حال حاضر غیرفعال است\\. لطفاً بعداً مراجعه کنید\\."
+        price_30_days = 50000  # ۵۰,۰۰۰ تومان
+        price_90_days = 125000 # ۱۲۵,۰۰۰ تومان
+        markup.add(
+            types.InlineKeyboardButton(
+                f"💳 اشتراک ۳۰ روزه ({price_30_days:,} تومان)",
+                callback_data=f"show_payment_info_30_{price_30_days}")
+        )
+        markup.add(
+            types.InlineKeyboardButton(
+                f"💳 اشتراک ۹۰ روزه ({price_90_days:,} تومان)",
+                callback_data=f"show_payment_info_90_{price_90_days}")
+        )
     try:
-        bot.send_message(message.chat.id, premium_text, reply_markup=markup, parse_mode="MarkdownV2")
+        bot.send_message(message.chat.id, premium_text, reply_markup=markup if markup.keyboard else None, parse_mode="MarkdownV2")
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Error sending premium account info to {user_id} (MarkdownV2 attempt): {e}", exc_info=True)
-        # Fallback to plain text if MarkdownV2 fails
-        plain_premium_text = premium_text.replace("\\*", "*").replace("\\(", "(").replace("\\)", ")").replace("\\-", "-").replace("\\.",".") # Basic unescaping for plain
+        plain_premium_text = premium_text.replace("\\*", "*").replace("\\(", "(").replace("\\)", ")").replace("\\-", "-").replace("\\.",".")
         try:
-            bot.send_message(message.chat.id, plain_premium_text, reply_markup=markup, parse_mode=None)
+            bot.send_message(message.chat.id, plain_premium_text, reply_markup=markup if markup.keyboard else None, parse_mode=None)
         except Exception as e2:
             logger.error(f"Error sending premium account info (plain text fallback) to {user_id}: {e2}", exc_info=True)
 
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('buy_premium_'))
-def handle_buy_premium(call):
+@bot.callback_query_handler(func=lambda call: call.data.startswith('show_payment_info_'))
+def handle_show_payment_info(call):
     user = call.from_user
     add_user(user.id, user.username, user.first_name, user.last_name)
     user_id = user.id
+
     try:
         parts = call.data.split('_')
-        if len(parts) < 4:
-            logger.warning(f"Invalid buy_premium callback data: {call.data} for user {user_id}")
-            bot.answer_callback_query(call.id, "خطا: درخواست نامعتبر.", show_alert=True)
-            return
+        duration_days = int(parts[3])
+        amount = int(parts[4])
+    except (IndexError, ValueError) as e:
+        logger.error(f"Invalid callback data for show_payment_info: {call.data} - Error: {e}")
+        bot.answer_callback_query(call.id, "خطا در پردازش درخواست شما.", show_alert=True)
+        return
 
-        duration_days = int(parts[2])
-        amount = int(parts[3])
+    card_number = "621986190922127"
 
-        if not Config.REPLIT_APP_URL or not Config.ZARINPAL_MERCHANT_CODE:
-            bot.answer_callback_query(call.id, "خطا: سیستم پرداخت هنوز پیکربندی نشده است.", show_alert=True)
-            return
+    message_text = (
+        f"✅ برای فعال‌سازی اشتراک *{duration_days} روزه* به مبلغ *{amount:,} تومان*، لطفاً مراحل زیر را دنبال کنید:\n\n"
+        f"1\\. مبلغ را به شماره کارت زیر واریز نمایید:\n"
+        f"`{card_number}`\n"
+        f"\\(با کلیک روی شماره کارت، در کلیپ‌بورد شما کپی می‌شود\\)\n\n"
+        f"2\\. پس از واریز، لطفاً از رسید پرداختی خود یک اسکرین‌شات \\(عکس\\) تهیه کنید\\.\n\n"
+        f"3\\. اسکرین‌شات را از طریق بخش «✉️ پشتیبانی» در منوی اصلی برای ما ارسال کنید\\.\n\n"
+        f"پس از بررسی و تایید رسید توسط تیم پشتیبانی، اشتراک ویژه شما در اسرع وقت فعال خواهد شد\\.\n\n"
+        f"🙏 از صبر و شکیبایی شما سپاسگزاریم\\."
+    )
 
-        authority = str(uuid.uuid4())
-        create_payment_record(user_id, authority, amount)
-        logger.info(f"Payment record created for user {user_id}, authority {authority}, amount {amount}.")
-
-        payment_url = (f"{Config.REPLIT_APP_URL.strip('/')}/payment/pay.php?"
-                       f"user_id={user_id}&amount={amount}&order_id={authority}&duration={duration_days}")
-
-        markup_pay = types.InlineKeyboardMarkup()
-        markup_pay.add(types.InlineKeyboardButton("⬅️ بازگشت", callback_data="cancel_payment"),
-                       types.InlineKeyboardButton("پرداخت آنلاین 💳", url=payment_url))
-
-        text_to_send = f"برای خرید اشتراک *{duration_days} روزه* به مبلغ *{amount:,} تومان*، روی دکمه پرداخت آنلاین کلیک کنید:"
+    try:
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text=escape_markdown_v2(text_to_send), # Escape for safety, though this text is mostly static
-            reply_markup=markup_pay,
-            parse_mode="MarkdownV2"
+            text=message_text, # This text is already escaped for MarkdownV2 by f-string construction
+            parse_mode="MarkdownV2",
+            reply_markup=None
         )
-        bot.answer_callback_query(call.id)
+        bot.answer_callback_query(call.id, "لطفاً اطلاعات پرداخت را دنبال کنید.")
+    except telebot.apihelper.ApiTelegramException as e:
+        logger.error(f"Error editing message for payment info to user {user_id}: {e}", exc_info=True)
+        try:
+            bot.send_message(user_id, message_text, parse_mode="MarkdownV2")
+            bot.answer_callback_query(call.id, "اطلاعات پرداخت نمایش داده شد.")
+        except Exception as e2:
+            logger.error(f"Error sending payment info as new message to user {user_id}: {e2}", exc_info=True)
+            bot.answer_callback_query(call.id, "خطا در نمایش اطلاعات پرداخت.", show_alert=True)
 
-    except ValueError:
-        logger.error(f"ValueError in buy_premium callback data: {call.data} for user {user_id}", exc_info=True)
-        bot.answer_callback_query(call.id, "خطا در پردازش درخواست.", show_alert=True)
-    except Exception as e:
-        logger.error(f"Error creating payment link for user {user_id}: {e}", exc_info=True)
-        bot.answer_callback_query(call.id, "خطای پیش‌بینی نشده در سیستم پرداخت.", show_alert=True)
-
-@bot.callback_query_handler(func=lambda call: call.data == "cancel_payment")
-def handle_cancel_payment(call):
-    add_user(call.from_user.id, call.from_user.username, call.from_user.first_name, call.from_user.last_name)
-    handle_premium_account(call.message)
-    bot.answer_callback_query(call.id, "عملیات پرداخت لغو شد.")
-    try:
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-    except:
-        pass
+# دیگر نیازی به handle_cancel_payment نیست چون دکمه بازگشتی در جریان جدید وجود ندارد.
+# @bot.callback_query_handler(func=lambda call: call.data == "cancel_payment")
+# def handle_cancel_payment(call):
+# ...
 
 @bot.message_handler(func=lambda message: message.text == "📊 آمار من")
 def handle_my_stats(message):
@@ -261,12 +243,11 @@ def handle_my_stats(message):
                          f"بالاترین امتیاز: `{stats['highest_score']}`\n"
                          f"میانگین امتیاز: `{stats['average_score']:.2f}`")
     else:
-        response_text = "شما هنوز در هیچ آزمونی شرکت نکرده‌اید. با شرکت در آزمون‌ها، آمار خود را اینجا ببینید!"
+        response_text = "شما هنوز در هیچ آزمونی شرکت نکرده‌اید\\. با شرکت در آزمون‌ها، آمار خود را اینجا ببینید\\!"
     try:
         bot.send_message(user_id, response_text, parse_mode="MarkdownV2")
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Error sending stats to {user_id}: {e}", exc_info=True)
-
 
 @bot.message_handler(func=lambda message: message.text == "🏆 جدول امتیازات")
 def handle_leaderboard(message):
@@ -276,17 +257,16 @@ def handle_leaderboard(message):
     if not top_users:
         bot.send_message(message.chat.id, "هنوز امتیازی در جدول ثبت نشده است. اولین نفر باشید!", parse_mode=None)
         return
-    
+
     leaderboard_text = "🏆 *جدول ۱۰ کاربر برتر:*\n\n"
     for i, user_stat in enumerate(top_users):
         user_name = escape_markdown_v2(user_stat.get('first_name', 'کاربر ناشناس'))
         score = user_stat.get('total_score', 0)
-        leaderboard_text += f"*{i+1}\\.* {user_name} \\- `{score}` امتیاز\n" # Escape . and -
+        leaderboard_text += f"*{i+1}\\.* {user_name} \\- `{score}` امتیاز\n"
     try:
         bot.send_message(message.chat.id, leaderboard_text, parse_mode="MarkdownV2")
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Error sending leaderboard to {message.chat.id}: {e}", exc_info=True)
-
 
 @bot.message_handler(func=lambda message: message.text == "❓ راهنما")
 def handle_help(message):
@@ -318,11 +298,7 @@ def handle_help(message):
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Error sending help to {message.chat.id}: {e}", exc_info=True)
 
-# ... (Rest of the bot.py code remains largely the same, focusing on the MarkdownV2 and add_user changes in relevant handlers)
-
-# --- بخش ۳: منطق آزمون‌ها ---
-def start_quiz_logic(user_id, from_user_obj, questions, test_type, level_display_name): # Added from_user_obj
-    """Helper function to start a quiz (comprehensive or skill-based)."""
+def start_quiz_logic(user_id, from_user_obj, questions, test_type, level_display_name):
     add_user(user_id, from_user_obj.username, from_user_obj.first_name, from_user_obj.last_name)
     if not questions:
         bot.send_message(user_id, "متاسفم، سوالی برای این آزمون یافت نشد. لطفاً بعداً دوباره تلاش کنید.", parse_mode=None)
@@ -334,19 +310,13 @@ def start_quiz_logic(user_id, from_user_obj, questions, test_type, level_display
     deadline = now + datetime.timedelta(seconds=time_limit_seconds)
 
     quiz_state = {
-        'questions': questions,
-        'current_question_index': 0,
-        'score': 0,
-        'start_time': now,
-        'deadline': deadline,
-        'test_type': test_type,
-        'level': level_display_name,
-        'answer_details': []
+        'questions': questions, 'current_question_index': 0, 'score': 0,
+        'start_time': now, 'deadline': deadline, 'test_type': test_type,
+        'level': level_display_name, 'answer_details': []
     }
     save_quiz_state(user_id, quiz_state)
-    
-    if user_id in user_quiz_sessions:
-        del user_quiz_sessions[user_id]
+
+    if user_id in user_quiz_sessions: del user_quiz_sessions[user_id]
 
     bot.send_message(user_id, escape_markdown_v2("⚠️ *توجه:* پاسخ شما پس از انتخاب قابل ویرایش نیست."), parse_mode='MarkdownV2')
     time.sleep(0.5)
@@ -381,11 +351,10 @@ def handle_general_quiz(message):
                 return
     try:
         questions = get_comprehensive_questions(Config.MAX_QUESTIONS)
-        start_quiz_logic(user_id, user, questions, 'جامع', 'جامع') # Pass user object
+        start_quiz_logic(user_id, user, questions, 'جامع', 'جامع')
     except Exception as e:
         logger.error(f"Error starting general quiz for user {user_id}: {e}", exc_info=True)
         bot.send_message(user_id, "خطایی در شروع آزمون جامع رخ داد. لطفاً به پشتیبانی اطلاع دهید.", parse_mode=None)
-
 
 @bot.message_handler(func=lambda message: message.text == "📚 آزمون مهارتی")
 def handle_skill_quiz_selection(message):
@@ -403,7 +372,7 @@ def handle_skill_quiz_selection(message):
     bot.send_message(
         message.chat.id,
         "شما کاربر ویژه هستید! 👍\nلطفاً ابتدا مهارت مورد نظر برای آزمون را انتخاب کنید:",
-        reply_markup=markup, parse_mode=None # This message is simple, no markdown needed
+        reply_markup=markup, parse_mode=None
     )
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('select_level_'))
@@ -433,7 +402,6 @@ def handle_level_selection(call):
         logger.error(f"Error in level selection for skill from callback {call.data}: {e}", exc_info=True)
         bot.answer_callback_query(call.id, "خطا در پردازش انتخاب سطح.", show_alert=True)
 
-
 @bot.callback_query_handler(func=lambda call: call.data.startswith('start_skill_quiz_'))
 def handle_skill_quiz_start(call):
     user = call.from_user
@@ -459,7 +427,7 @@ def handle_skill_quiz_start(call):
             parse_mode="MarkdownV2"
         )
         bot.answer_callback_query(call.id)
-        start_quiz_logic(user_id, user, questions, 'مهارتی', level_display_name) # Pass user object
+        start_quiz_logic(user_id, user, questions, 'مهارتی', level_display_name)
 
     except Exception as e:
         logger.error(f"Error starting skill quiz from callback {call.data} for user {user_id}: {e}", exc_info=True)
@@ -482,8 +450,8 @@ def send_question_to_user(user_id, question_data):
         except json.JSONDecodeError: logger.error(f"Failed to parse options JSON for qID {question_data.get('id')} for user {user_id}. Opt: {options_list}"); options_list = []
     if not isinstance(options_list, list): logger.error(f"Options for qID {question_data.get('id')} not a list for user {user_id}. Opt: {options_list}"); options_list = []
 
-    for i, option_text in enumerate(options_list):
-        markup.add(types.InlineKeyboardButton(str(option_text), callback_data=f"answer_{question_data['id']}_{i}"))
+    for i, option_text_raw in enumerate(options_list):
+        markup.add(types.InlineKeyboardButton(escape_markdown_v2(str(option_text_raw)), callback_data=f"answer_{question_data['id']}_{i}"))
 
     time_left_str = ""
     if 'deadline' in quiz_state and isinstance(quiz_state['deadline'], datetime.datetime):
@@ -498,15 +466,15 @@ def send_question_to_user(user_id, question_data):
 
     current_q_index = quiz_state.get('current_question_index', 0)
     total_questions_in_quiz = len(quiz_state.get('questions', []))
-    question_number_display = escape_markdown_v2(f"سوال *{current_q_index + 1}* از *{total_questions_in_quiz}*")
+    question_number_display = f"سوال *{current_q_index + 1}* از *{total_questions_in_quiz}*"
 
     header = ""
     if quiz_state.get('test_type') == 'جامع':
-        header = escape_markdown_v2(f"*آزمون جامع* - {question_number_display}")
+        header = f"*آزمون جامع* \\- {question_number_display}"
     else:
         skill_name = escape_markdown_v2(question_data.get('skill', 'مهارتی'))
         level_name = escape_markdown_v2(question_data.get('level', ''))
-        header = escape_markdown_v2(f"*{skill_name}* (سطح {level_name}) - {question_number_display}")
+        header = f"*{skill_name}* \\(سطح {level_name}\\) \\- {question_number_display}"
 
     question_text_escaped = escape_markdown_v2(question_data.get('question_text', 'متن سوال یافت نشد.'))
     final_text = f"{time_left_str}{header}\n\n{question_text_escaped}"
@@ -518,7 +486,6 @@ def send_question_to_user(user_id, question_data):
 
         if media_path_db and media_type:
             filename_only = os.path.basename(media_path_db)
-            # Config.UPLOAD_FOLDER باید مسیر مطلق به /app/static/media در کانتینر باشد
             full_disk_path = os.path.join(Config.UPLOAD_FOLDER, filename_only)
 
             logger.info(f"Attempting to send media DIRECTLY for question {question_data.get('id')}: type={media_type}, disk_path={full_disk_path}")
@@ -637,7 +604,6 @@ def handle_answer(call):
         except: options_list_for_feedback = []
     if not isinstance(options_list_for_feedback, list): options_list_for_feedback = []
 
-
     edited_markup = types.InlineKeyboardMarkup(row_width=1)
     for i, option_text_raw in enumerate(options_list_for_feedback):
         option_text = escape_markdown_v2(str(option_text_raw))
@@ -651,8 +617,9 @@ def handle_answer(call):
         edited_markup.add(types.InlineKeyboardButton(f"{prefix}{option_text}", callback_data=f"answered_{current_question['id']}_{i}"))
 
     correct_answer_text = ""
-    if current_question.get('correct_answer') is not None and current_question.get('correct_answer') < len(options_list_for_feedback):
-        correct_answer_text = escape_markdown_v2(str(options_list_for_feedback[current_question.get('correct_answer')]))
+    correct_answer_idx = current_question.get('correct_answer')
+    if correct_answer_idx is not None and 0 <= correct_answer_idx < len(options_list_for_feedback):
+        correct_answer_text = escape_markdown_v2(str(options_list_for_feedback[correct_answer_idx]))
 
     if is_premium_user:
         feedback_message = escape_markdown_v2("✅ پاسخ صحیح") if is_correct else escape_markdown_v2(f"❌ پاسخ شما اشتباه بود. پاسخ صحیح: {correct_answer_text}")
@@ -663,15 +630,15 @@ def handle_answer(call):
 
     current_q_idx_display = quiz_state.get('current_question_index', 0)
     total_q_in_quiz_display = len(quiz_state.get('questions', []))
-    q_num_display_edit = escape_markdown_v2(f"سوال *{current_q_idx_display + 1}* از *{total_q_in_quiz_display}*")
+    q_num_display_edit = f"سوال *{current_q_idx_display + 1}* از *{total_q_in_quiz_display}*"
 
     header_edit = ""
     if quiz_state.get('test_type') == 'جامع':
-        header_edit = escape_markdown_v2(f"*آزمون جامع* - {q_num_display_edit}")
+        header_edit = f"*آزمون جامع* \\- {q_num_display_edit}"
     else:
         skill_edit = escape_markdown_v2(current_question.get('skill', 'مهارتی'))
         level_edit = escape_markdown_v2(current_question.get('level', ''))
-        header_edit = escape_markdown_v2(f"*{skill_edit}* (سطح {level_edit}) - {q_num_display_edit}")
+        header_edit = f"*{skill_edit}* \\(سطح {level_edit}\\) \\- {q_num_display_edit}"
 
     question_text_edit = escape_markdown_v2(current_question.get('question_text', ''))
     edited_message_text = f"{header_edit}\n\n{question_text_edit}\n\n*{feedback_message}*"
@@ -679,9 +646,6 @@ def handle_answer(call):
     active_quiz_message_id = user_quiz_sessions.get(user_id)
     if active_quiz_message_id == call.message.message_id:
         try:
-            # Assuming the original message was text, or media with caption
-            # If original was media, edit_message_caption should be used.
-            # For simplicity, assuming text or that edit_message_text works for captions too (it often does for just text part)
             bot.edit_message_text(text=edited_message_text,
                                   chat_id=call.message.chat.id,
                                   message_id=call.message.message_id,
@@ -691,7 +655,10 @@ def handle_answer(call):
                 logger.error(f"API Error editing answer feedback for user {user_id}, q_id {current_question.get('id')}: {e}", exc_info=True)
     else:
         logger.warning(f"Mismatch in message_id for editing answer for user {user_id}. Expected {active_quiz_message_id}, got {call.message.message_id}")
-        bot.send_message(user_id, f"نتیجه سوال شما:\n{feedback_message}", reply_markup=edited_markup, parse_mode="MarkdownV2")
+        try:
+            bot.send_message(user_id, f"نتیجه سوال شما:\n{feedback_message}", reply_markup=edited_markup, parse_mode="MarkdownV2")
+        except Exception as e_send:
+             logger.error(f"Error sending new feedback message for user {user_id}: {e_send}", exc_info=True)
 
     bot.answer_callback_query(call.id)
     quiz_state['current_question_index'] += 1
@@ -778,7 +745,7 @@ def end_quiz(user_id, quiz_state):
         suggestion_text = "عملکرد خوبی داشتید\\! برای رسیدن به سطوح بالاتر، تمرین مستمر روی مهارت‌های مختلف را فراموش نکنید\\."
     if suggestion_text:
         try:
-            bot.send_message(user_id, escape_markdown_v2(suggestion_text), parse_mode="MarkdownV2")
+            bot.send_message(user_id, suggestion_text, parse_mode="MarkdownV2") # suggestion_text is already escaped
         except telebot.apihelper.ApiTelegramException as e:
              logger.error(f"Error sending suggestion to {user_id}: {e}", exc_info=True)
 
@@ -817,32 +784,21 @@ def handle_cancel_support(message):
     bot.send_message(user_id, "ارسال پیام به پشتیبانی لغو شد.", parse_mode=None)
     send_main_keyboard(user_id)
 
-def escape_markdown_v2(text: str) -> str:
-    """
-    Escapes text for Telegram MarkdownV2.
-    Characters to escape: _ * [ ] ( ) ~ ` > # + - = | { } . !
-    """
-    if not isinstance(text, str):
-        return ''
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
-    return "".join(f'\\{char}' if char in escape_chars else char for char in text)
-
 def forward_support_message_to_admins(user_id, first_name, username, message_id_to_forward=None, text_content=None, media_path_for_admin_info=None):
     safe_first_name = escape_markdown_v2(first_name or '')
     safe_username = escape_markdown_v2(username or 'N/A')
-    user_id_str = str(user_id) # No need to escape user_id if it's just digits
+    user_id_str = str(user_id)
 
-    # Construct user_display carefully to avoid issues with @ if username is empty
-    if safe_username and safe_username != 'N/A':
+    if safe_username and safe_username != escape_markdown_v2('N/A'): # Compare escaped versions
         user_display = f"{safe_first_name} \\(@{safe_username}, ID: {user_id_str}\\)"
     else:
         user_display = f"{safe_first_name} \\(ID: {user_id_str}\\)"
 
-    admin_notification_text = f"یک پیام پشتیبانی جدید از کاربر {user_display} دریافت شد\\." # Escape trailing dot
+    admin_notification_text = f"یک پیام پشتیبانی جدید از کاربر {user_display} دریافت شد\\."
 
     if media_path_for_admin_info:
         panel_link_text = "پنل ادمین"
-        panel_url = f"{Config.REPLIT_APP_URL.strip('/')}/support_messages" # URL itself should not be escaped for Markdown link
+        panel_url = f"{Config.REPLIT_APP_URL.strip('/')}/support_messages"
         admin_notification_text += f"\nنوع: تصویر/رسانه\\. برای مشاهده به [{escape_markdown_v2(panel_link_text)}]({panel_url}) مراجعه کنید\\."
 
     for admin_id in Config.ADMIN_IDS:
@@ -855,7 +811,7 @@ def forward_support_message_to_admins(user_id, first_name, username, message_id_
             logger.error(f"Failed to send MarkdownV2 support notification to admin {admin_id} for user {user_id}: {e}", exc_info=True)
             try:
                 logger.info(f"Fallback: Sending admin notification for user {user_id} as plain text to admin {admin_id}")
-                plain_user_display = f"{first_name or ''} (@{username or 'N/A'}, ID: {user_id})" # Original for plain text
+                plain_user_display = f"{first_name or ''} (@{username or 'N/A'}, ID: {user_id})"
                 plain_text_notification = f"یک پیام پشتیبانی جدید از کاربر {plain_user_display} دریافت شد."
                 if media_path_for_admin_info:
                     plain_text_notification += f"\nنوع: تصویر/رسانه. برای مشاهده به پنل ادمین مراجعه کنید: {Config.REPLIT_APP_URL.strip('/')}/support_messages"
@@ -938,25 +894,24 @@ def admin_panel_command(message):
     user_id = user.id
     if user_id in Config.ADMIN_IDS:
         panel_url = Config.REPLIT_APP_URL.strip('/') + "/dashboard" if Config.REPLIT_APP_URL else "پنل ادمین (URL not configured)"
-        bot.send_message(user_id, f"به پنل ادمین خوش آمدید!\nلینک پنل: {panel_url}", parse_mode=None) # Plain text for URL
+        bot.send_message(user_id, f"به پنل ادمین خوش آمدید!\nلینک پنل: {panel_url}", parse_mode=None)
     else:
         logger.info(f"Non-admin user {user_id} tried to use /admin command.")
 
 def send_admin_response_to_user(user_telegram_id, admin_response_text):
     try:
-        # برای پاسخ ادمین، بهتر است از MarkdownV2 استفاده کنیم تا ادمین بتواند فرمت‌بندی کند.
-        # اما باید مطمئن شویم خود admin_response_text به درستی برای MarkdownV2 آماده شده یا escape شود.
-        # فعلا فرض می‌کنیم ادمین متن را با آگاهی از MarkdownV2 وارد می‌کند یا متن ساده است.
-        # برای امنیت بیشتر، باید admin_response_text هم escape_markdown_v2 شود اگر از منبع غیرقابل اعتماد می‌آید.
-        # اما چون از فرم ادمین می‌آید، فعلا بدون escape ارسال می‌کنیم.
+        # ادمین ممکن است بخواهد از Markdown استفاده کند، پس اجازه می‌دهیم.
+        # اگر ادمین کاراکتر خاصی استفاده کند که نیاز به escape دارد، باید خودش انجام دهد.
+        # یا می‌توانیم اینجا هم escape_markdown_v2(admin_response_text) را فراخوانی کنیم.
+        # فعلا فرض می‌کنیم متن ادمین برای MarkdownV2 آماده است یا ساده است.
         bot.send_message(user_telegram_id,
-                         f"✉️ *پاسخ از طرف پشتیبانی:*\n\n{admin_response_text}", # Assuming admin_response_text is safe or pre-escaped
+                         f"✉️ *پاسخ از طرف پشتیبانی:*\n\n{admin_response_text}",
                          parse_mode='MarkdownV2')
         logger.info(f"Admin response sent to user {user_telegram_id}.")
         return True
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Failed to send MarkdownV2 admin response to user {user_telegram_id}: {e}", exc_info=True)
-        try: # Fallback to plain text
+        try:
             bot.send_message(user_telegram_id, f"پاسخ از طرف پشتیبانی:\n\n{admin_response_text}", parse_mode=None)
             logger.info(f"Fallback: Admin response sent as plain text to user {user_telegram_id}.")
             return True
@@ -969,21 +924,21 @@ def send_admin_response_to_user(user_telegram_id, admin_response_text):
 
 def send_payment_confirmation(user_id, duration_days, amount_paid=None, currency="تومان"):
     try:
-        text = f"✅ پرداخت شما با موفقیت تایید شد\\!\n"
-        if amount_paid:
-             text += f"مبلغ `{amount_paid:,}` {escape_markdown_v2(currency)} دریافت شد\\.\n"
-        text += f"اشتراک ویژه شما به مدت *{duration_days}* روز فعال گردید\\."
+        # این تابع پس از تایید دستی ادمین فراخوانی می‌شود
+        text = f"✅ اشتراک ویژه شما با موفقیت فعال شد\\!\n"
+        if amount_paid: # اگر ادمین مبلغ را هم وارد کرده باشد (اختیاری)
+             text += f"مبلغ دریافتی: `{amount_paid:,}` {escape_markdown_v2(currency)}\\.\n"
+        text += f"مدت اعتبار: *{duration_days}* روز\\."
 
         bot.send_message(user_id, text, parse_mode='MarkdownV2')
         send_main_keyboard(user_id, "اشتراک شما فعال شد! از امکانات ویژه لذت ببرید.")
-        logger.info(f"Payment confirmation sent to user {user_id} for {duration_days} days.")
+        logger.info(f"Manual payment confirmation sent to user {user_id} for {duration_days} days.")
         return True
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Failed to send payment confirmation (MarkdownV2) to {user_id}: {e}", exc_info=True)
-        # Fallback to plain text
-        plain_text = f"✅ پرداخت شما با موفقیت تایید شد!\n"
-        if amount_paid: plain_text += f"مبلغ {amount_paid:,} {currency} دریافت شد.\n"
-        plain_text += f"اشتراک ویژه شما به مدت {duration_days} روز فعال گردید."
+        plain_text = f"✅ اشتراک ویژه شما با موفقیت فعال شد!\n"
+        if amount_paid: plain_text += f"مبلغ دریافتی: {amount_paid:,} {currency}.\n"
+        plain_text += f"مدت اعتبار: {duration_days} روز."
         try:
             bot.send_message(user_id, plain_text, parse_mode=None)
             send_main_keyboard(user_id, "اشتراک شما فعال شد! از امکانات ویژه لذت ببرید.")

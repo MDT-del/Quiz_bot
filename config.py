@@ -18,13 +18,8 @@ class Config:
 
     QUIZ_COOLDOWN_HOURS = 24  # مثلاً 24 ساعت برای محدودیت آزمون جامع
 
-    # کد مرچنت زرین‌پال
-    ZARINPAL_MERCHANT_CODE = os.environ.get('ZARINPAL_MERCHANT_CODE')
-
-    # --- کلید مخفی برای ارتباط امن بین PHP و Python ---
-    # این کلید باید در هر دو طرف (PHP و Python) یکسان باشد و در .env تنظیم شود.
-    PHP_SECRET_KEY = os.environ.get('PHP_SECRET_KEY', 'your-default-php-secret-key-if-not-in-env')
-    # --------------------------------------------------
+    # ZARINPAL_MERCHANT_CODE = os.environ.get('ZARINPAL_MERCHANT_CODE') # دیگر استفاده نمی‌شود
+    # PHP_SECRET_KEY = os.environ.get('PHP_SECRET_KEY', 'your-default-php-secret-key-if-not-in-env') # دیگر استفاده نمی‌شود
     
     # تنظیمات دیتابیس
     # مسیر فایل دیتابیس SQLite

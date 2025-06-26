@@ -667,13 +667,13 @@ def handle_answer(call):
 
 def get_level_from_percentage(percentage):
     percentage = max(0, min(100, percentage))
-    if percentage <= 20: return "A1.1 (مقدماتی ۱)"
-    elif percentage <= 35: return "A1.2 (مقدماتی ۲)"
-    elif percentage <= 52: return "A2.1 (پایه ۱)"
-    elif percentage <= 62: return "A2.2 (پایه ۲)"
-    elif percentage <= 75: return "B1 (متوسط)"
-    elif percentage <= 90: return "B2 (فوق متوسط)"
-    else: return "C1/C2 (پیشرفته)"
+    if percentage <= 20: return "A1.1"
+    elif percentage <= 35: return "A1.2"
+    elif percentage <= 52: return "A2.1"
+    elif percentage <= 62: return "A2.2"
+    elif percentage <= 75: return "B1"
+    elif percentage <= 90: return "B2"
+    else: return "C1/C2"
 
 def end_quiz(user_id, quiz_state):
     if not quiz_state:

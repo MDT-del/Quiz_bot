@@ -18,6 +18,7 @@ import random
 import uuid
 import json
 import logging
+from telebot.formatting import escape_markdown # For Markdown (V1)
 
 logger = logging.getLogger("bot")
 bot = telebot.TeleBot(Config.TOKEN)
@@ -25,12 +26,6 @@ bot = telebot.TeleBot(Config.TOKEN)
 support_sessions = {}
 user_quiz_sessions = {}
 
-# --- MarkdownV2 Escaper ---
-def escape_markdown_v2(text: str) -> str:
-    if not isinstance(text, str):
-        return ''
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
-    return "".join(f'\\{char}' if char in escape_chars else char for char in text)
 
 # --- بخش ۱: مدیریت منوها ---
 def send_main_keyboard(user_id, text="به منوی اصلی خوش آمدید!"):
@@ -130,7 +125,7 @@ def handle_premium_account(message):
     user = message.from_user
     add_user(user.id, user.username, user.first_name, user.last_name)
     user_id = user.id
-    premium_text_markdown = "" # For MarkdownV2
+    premium_text = ""
     markup = types.InlineKeyboardMarkup()
 
     if is_user_premium(user_id):
@@ -139,22 +134,22 @@ def handle_premium_account(message):
             try:
                 shamsi_date = jdatetime.datetime.fromgregorian(datetime=expiry_date_gregorian)
                 expiry_date_str_shamsi = shamsi_date.strftime("%Y/%m/%d ساعت %H:%M")
-                premium_text_markdown = (
-                    f"✨ *شما کاربر ویژه هستید\\!*\n\n"
-                    f"اعتبار حساب شما تا تاریخ *{escape_markdown_v2(expiry_date_str_shamsi)}* معتبر است\\."
+                premium_text = (
+                    f"✨ *شما کاربر ویژه هستید!*\n\n"
+                    f"اعتبار حساب شما تا تاریخ *{escape_markdown(expiry_date_str_shamsi)}* معتبر است."
                 )
             except Exception as e:
                 logger.error(f"Error converting premium expiry date for user {user_id}: {e}", exc_info=True)
-                premium_text_markdown = "✨ *شما کاربر ویژه هستید\\!*\n\n امکان نمایش تاریخ انقضا وجود ندارد\\."
+                premium_text = "✨ *شما کاربر ویژه هستید!*\n\n امکان نمایش تاریخ انقضا وجود ندارد."
         else:
-            premium_text_markdown = "✨ *شما کاربر ویژه هستید\\!*\n\n تاریخ انقضای اشتراک شما مشخص نیست\\."
+            premium_text = "✨ *شما کاربر ویژه هستید!*\n\n تاریخ انقضای اشتراک شما مشخص نیست."
     else:
-        premium_text_markdown = (
-            "✨ *حساب کاربری ویژه \\(Premium Account\\)*\n\n"
+        premium_text = (
+            "✨ *حساب کاربری ویژه (Premium Account)*\n\n"
             "با ارتقاء به حساب کاربری ویژه، از قابلیت‌های انحصاری زیر بهره‌مند شوید:\n"
-            "\\- شرکت *نامحدود* در تمام آزمون‌ها\\.\n"
-            "\\- دسترسی کامل به تمام *آزمون‌های مهارتی*\\.\n"
-            "\\- مشاهده *پاسخ صحیح* پس از جواب دادن به هر سوال\\.\n\n"
+            "- شرکت *نامحدود* در تمام آزمون‌ها.\n"
+            "- دسترسی کامل به تمام *آزمون‌های مهارتی*.\n"
+            "- مشاهده *پاسخ صحیح* پس از جواب دادن به هر سوال.\n\n"
             "لطفاً برای فعال‌سازی، یکی از طرح‌های زیر را انتخاب کنید:"
         )
         price_30_days = 50000
@@ -170,11 +165,10 @@ def handle_premium_account(message):
                 callback_data=f"show_payment_info_90_{price_90_days}")
         )
     try:
-        bot.send_message(message.chat.id, premium_text_markdown, reply_markup=markup if markup.keyboard else None, parse_mode="MarkdownV2")
+        bot.send_message(message.chat.id, premium_text, reply_markup=markup if markup.keyboard else None, parse_mode="Markdown")
     except telebot.apihelper.ApiTelegramException as e:
-        logger.error(f"Error sending premium account info to {user_id} (MarkdownV2 attempt): {e}", exc_info=True)
-        # Fallback to plain text: try to unescape for plain text if possible
-        plain_premium_text = premium_text_markdown.replace("\\*", "*").replace("\\(", "(").replace("\\)", ")").replace("\\-", "-").replace("\\.",".").replace("\\!", "!") # Basic unescaping
+        logger.error(f"Error sending premium account info to {user_id} (Markdown attempt): {e}", exc_info=True)
+        plain_premium_text = premium_text.replace("*", "") # Basic unescaping for plain text
         try:
             bot.send_message(message.chat.id, plain_premium_text, reply_markup=markup if markup.keyboard else None, parse_mode=None)
         except Exception as e2:
@@ -197,16 +191,16 @@ def handle_show_payment_info(call):
 
     card_number = "621986190922127"
 
-    # Text for MarkdownV2, ensure special characters are escaped
+    # Text for Markdown (V1)
     message_text_md = (
         f"✅ برای فعال‌سازی اشتراک *{duration_days} روزه* به مبلغ *{amount:,} تومان*، لطفاً مراحل زیر را دنبال کنید:\n\n"
-        f"1\\. مبلغ را به شماره کارت زیر واریز نمایید:\n"
+        f"1. مبلغ را به شماره کارت زیر واریز نمایید:\n"
         f"`{card_number}`\n" # Code block for easy copy
-        f"\\(با کلیک روی شماره کارت، در کلیپ‌بورد شما کپی می‌شود\\)\n\n"
-        f"2\\. پس از واریز، لطفاً از رسید پرداختی خود یک اسکرین‌شات \\(عکس\\) تهیه کنید\\.\n\n"
-        f"3\\. اسکرین‌شات را از طریق بخش «✉️ پشتیبانی» در منوی اصلی برای ما ارسال کنید\\.\n\n"
-        f"پس از بررسی و تایید رسید توسط تیم پشتیبانی، اشتراک ویژه شما در اسرع وقت فعال خواهد شد\\.\n\n"
-        f"🙏 از صبر و شکیبایی شما سپاسگزاریم\\."
+        f"(با کلیک روی شماره کارت، در کلیپ‌بورد شما کپی می‌شود)\n\n"
+        f"2. پس از واریز، لطفاً از رسید پرداختی خود یک اسکرین‌شات (عکس) تهیه کنید.\n\n"
+        f"3. اسکرین‌شات را از طریق بخش «✉️ پشتیبانی» در منوی اصلی برای ما ارسال کنید.\n\n"
+        f"پس از بررسی و تایید رسید توسط تیم پشتیبانی، اشتراک ویژه شما در اسرع وقت فعال خواهد شد.\n\n"
+        f"🙏 از صبر و شکیبایی شما سپاسگزاریم."
     )
 
     try:
@@ -214,14 +208,13 @@ def handle_show_payment_info(call):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
             text=message_text_md,
-            parse_mode="MarkdownV2",
+            parse_mode="Markdown",
             reply_markup=None
         )
         bot.answer_callback_query(call.id, "اطلاعات پرداخت نمایش داده شد.")
     except telebot.apihelper.ApiTelegramException as e:
-        logger.error(f"Error editing message for payment info to user {user_id} (MarkdownV2): {e}", exc_info=True)
-        # Fallback to sending new message if edit fails or if text is too complex for edit's Markdown
-        plain_message_text = message_text_md.replace("\\*", "*").replace("`", "").replace("\\(", "(").replace("\\)", ")").replace("\\.", ".").replace("\\!", "!")
+        logger.error(f"Error editing message for payment info to user {user_id} (Markdown): {e}", exc_info=True)
+        plain_message_text = message_text_md.replace("*", "").replace("`", "")
         try:
             bot.send_message(user_id, plain_message_text, parse_mode=None) # Send as plain
             bot.answer_callback_query(call.id, "اطلاعات پرداخت نمایش داده شد.")
@@ -245,11 +238,14 @@ def handle_my_stats(message):
             f"میانگین امتیاز: `{stats['average_score']:.2f}`"
         )
     else:
-        response_text = "شما هنوز در هیچ آزمونی شرکت نکرده‌اید\\. با شرکت در آزمون‌ها، آمار خود را اینجا ببینید\\!"
+        response_text = "شما هنوز در هیچ آزمونی شرکت نکرده‌اید. با شرکت در آزمون‌ها، آمار خود را اینجا ببینید!"
     try:
-        bot.send_message(user_id, response_text, parse_mode="MarkdownV2")
+        bot.send_message(user_id, response_text, parse_mode="Markdown")
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Error sending stats to {user_id}: {e}", exc_info=True)
+        plain_response_text = response_text.replace("*", "").replace("`", "")
+        bot.send_message(user_id, plain_response_text, parse_mode=None)
+
 
 @bot.message_handler(func=lambda message: message.text == "🏆 جدول امتیازات")
 def handle_leaderboard(message):
@@ -262,44 +258,49 @@ def handle_leaderboard(message):
 
     leaderboard_text = "🏆 *جدول ۱۰ کاربر برتر:*\n\n"
     for i, user_stat in enumerate(top_users):
-        user_name = escape_markdown_v2(user_stat.get('first_name', 'کاربر ناشناس'))
+        user_name = escape_markdown(user_stat.get('first_name', 'کاربر ناشناس'))
         score = user_stat.get('total_score', 0)
-        leaderboard_text += f"*{i+1}\\.* {user_name} \\- `{score}` امتیاز\n"
+        leaderboard_text += f"*{i+1}.* {user_name} - `{score}` امتیاز\n"
     try:
-        bot.send_message(message.chat.id, leaderboard_text, parse_mode="MarkdownV2")
+        bot.send_message(message.chat.id, leaderboard_text, parse_mode="Markdown")
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Error sending leaderboard to {message.chat.id}: {e}", exc_info=True)
+        plain_leaderboard_text = leaderboard_text.replace("*", "").replace("`", "")
+        bot.send_message(message.chat.id, plain_leaderboard_text, parse_mode=None)
+
 
 @bot.message_handler(func=lambda message: message.text == "❓ راهنما")
 def handle_help(message):
     user = message.from_user
     add_user(user.id, user.username, user.first_name, user.last_name)
-    # This text is pre-escaped for MarkdownV2
     help_text = (
         "*راهنمای جامع ربات آزمون زبان*\n\n"
-        "به ربات ما خوش آمدید\\! در اینجا نحوه کار با بخش‌های مختلف توضیح داده شده است:\n\n"
-        "\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\n\n"
+        "به ربات ما خوش آمدید! در اینجا نحوه کار با بخش‌های مختلف توضیح داده شده است:\n\n"
+        "-----------------------------------\n\n"
         "📝 *آزمون‌ها*\n"
-        "1\\.  *آزمون جامع:* این آزمون سطح کلی شما را با سوالات متنوع می‌سنجد\\.\n"
-        "2\\.  *آزمون مهارتی:* این آزمون‌ها \\(مخصوص کاربران ویژه\\) روی یک مهارت خاص مانند گرامر یا لغت تمرکز دارند\\.\n\n"
+        "1.  *آزمون جامع:* این آزمون سطح کلی شما را با سوالات متنوع می‌سنجد.\n"
+        "2.  *آزمون مهارتی:* این آزمون‌ها (مخصوص کاربران ویژه) روی یک مهارت خاص مانند گرامر یا لغت تمرکز دارند.\n\n"
         "⏳ *زمان‌بندی آزمون:*\n"
-        "برای هر سوال در آزمون جامع *۴۰ ثانیه* و در آزمون مهارتی *۱ دقیقه* زمان برای پاسخگویی دارید\\.\n\n"
-        "\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\n\n"
+        "برای هر سوال در آزمون جامع *۴۰ ثانیه* و در آزمون مهارتی *۱ دقیقه* زمان برای پاسخگویی دارید.\n\n"
+        "-----------------------------------\n\n"
         "💎 *حساب کاربری ویژه*\n"
         "با ارتقاء به حساب کاربری ویژه، از مزایای زیر بهره‌مند می‌شوید:\n"
-        "\\- شرکت *نامحدود* در تمام آزمون‌ها\\.\n"
-        "\\- دسترسی کامل به تمام *آزمون‌های مهارتی*\\.\n"
-        "\\- مشاهده *پاسخ صحیح* پس از جواب دادن به هر سوال\\.\n\n"
-        "\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\n\n"
+        "- شرکت *نامحدود* در تمام آزمون‌ها.\n"
+        "- دسترسی کامل به تمام *آزمون‌های مهارتی*.\n"
+        "- مشاهده *پاسخ صحیح* پس از جواب دادن به هر سوال.\n\n"
+        "-----------------------------------\n\n"
         "✉️ *پشتیبانی*\n"
-        "در صورت داشتن هرگونه سوال یا مشکل، از طریق بخش پشتیبانی با ما در تماس باشید\\.\n\n"
+        "در صورت داشتن هرگونه سوال یا مشکل، از طریق بخش پشتیبانی با ما در تماس باشید.\n\n"
         "📊 *آمار و امتیازات*\n"
-        "عملکرد خود را در بخش 'آمار من' پیگیری کنید و جایگاه خود را در 'جدول امتیازات' ببینید\\."
+        "عملکرد خود را در بخش 'آمار من' پیگیری کنید و جایگاه خود را در 'جدول امتیازات' ببینید."
     )
     try:
-        bot.send_message(message.chat.id, help_text, parse_mode="MarkdownV2")
+        bot.send_message(message.chat.id, help_text, parse_mode="Markdown")
     except telebot.apihelper.ApiTelegramException as e:
         logger.error(f"Error sending help to {message.chat.id}: {e}", exc_info=True)
+        plain_help_text = help_text.replace("*", "")
+        bot.send_message(message.chat.id, plain_help_text, parse_mode=None)
+
 
 def start_quiz_logic(user_id, from_user_obj, questions, test_type, level_display_name):
     add_user(user_id, from_user_obj.username, from_user_obj.first_name, from_user_obj.last_name)
@@ -321,8 +322,7 @@ def start_quiz_logic(user_id, from_user_obj, questions, test_type, level_display
 
     if user_id in user_quiz_sessions: del user_quiz_sessions[user_id]
 
-    # متن به درستی برای MarkdownV2 فرمت‌بندی شده و فقط کاراکترهای لازم escape می‌شوند
-    bot.send_message(user_id, "⚠️ *توجه:* پاسخ شما پس از انتخاب قابل ویرایش نیست\\.", parse_mode='MarkdownV2')
+    bot.send_message(user_id, "⚠️ *توجه:* پاسخ شما پس از انتخاب قابل ویرایش نیست.", parse_mode='Markdown')
     time.sleep(0.5)
     send_question_to_user(user_id, questions[0])
     return True
@@ -345,12 +345,11 @@ def handle_general_quiz(message):
                 remaining_seconds = cooldown_seconds - time_since_last_test.total_seconds()
                 remaining_hours = int(remaining_seconds // 3600)
                 remaining_minutes = int((remaining_seconds % 3600) // 60)
-                # متن به درستی برای MarkdownV2 فرمت‌بندی شده و فقط کاراکترهای لازم escape می‌شوند
-                text_mdv2 = (\
-                    f"شما به تازگی در آزمون جامع شرکت کرده‌اید\\. لطفاً *{remaining_hours}* ساعت و *{remaining_minutes}* دقیقه دیگر دوباره امتحان کنید\\.\n\n"\
-                    f"💎 کاربران ویژه محدودیتی برای شرکت در آزمون ندارند\\."\
+                text_md = (
+                    f"شما به تازگی در آزمون جامع شرکت کرده‌اید. لطفاً *{remaining_hours}* ساعت و *{remaining_minutes}* دقیقه دیگر دوباره امتحان کنید.\n\n"
+                    f"💎 کاربران ویژه محدودیتی برای شرکت در آزمون ندارند."
                 )
-                bot.send_message(user_id, text_mdv2, parse_mode="MarkdownV2")
+                bot.send_message(user_id, text_md, parse_mode="Markdown")
                 return
     try:
         questions = get_comprehensive_questions(Config.MAX_QUESTIONS)
@@ -395,9 +394,9 @@ def handle_level_selection(call):
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text=f"عالی! حالا سطح دشواری برای مهارت *{escape_markdown_v2(skill)}* را انتخاب کنید:",
+            text=f"عالی! حالا سطح دشواری برای مهارت *{escape_markdown(skill)}* را انتخاب کنید:",
             reply_markup=markup,
-            parse_mode="MarkdownV2"
+            parse_mode="Markdown"
         )
         bot.answer_callback_query(call.id)
     except Exception as e:
@@ -417,7 +416,6 @@ def handle_skill_quiz_start(call):
         _, _, _, skill, level = call.data.split('_', 4)
         questions = get_questions_by_skill_and_level(skill, level, Config.MAX_QUESTIONS)
         if not questions:
-            # Use html.escape for display in show_alert, not MarkdownV2
             bot.answer_callback_query(call.id, f"متاسفانه سوالی برای مهارت «{html.escape(skill)}» در سطح «{html.escape(level)}» یافت نشد.", show_alert=True)
             return
 
@@ -425,8 +423,8 @@ def handle_skill_quiz_start(call):
         bot.edit_message_text(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            text=f"آزمون مهارتی *{escape_markdown_v2(skill)}* سطح *{escape_markdown_v2(level)}* در حال آماده‌سازی است\\.\\.\\.",
-            parse_mode="MarkdownV2"
+            text=f"آزمون مهارتی *{escape_markdown(skill)}* سطح *{escape_markdown(level)}* در حال آماده‌سازی است...",
+            parse_mode="Markdown"
         )
         bot.answer_callback_query(call.id)
         start_quiz_logic(user_id, user, questions, 'مهارتی', level_display_name)
@@ -452,14 +450,14 @@ def send_question_to_user(user_id, question_data):
     if not isinstance(options_list, list): logger.error(f"Options for qID {question_data.get('id')} not a list for user {user_id}. Opt: {options_list}"); options_list = []
 
     for i, option_text_raw in enumerate(options_list):
-        markup.add(types.InlineKeyboardButton(escape_markdown_v2(str(option_text_raw)), callback_data=f"answer_{question_data['id']}_{i}"))
+        markup.add(types.InlineKeyboardButton(escape_markdown(str(option_text_raw)), callback_data=f"answer_{question_data['id']}_{i}"))
 
     time_left_str = ""
     if 'deadline' in quiz_state and isinstance(quiz_state['deadline'], datetime.datetime):
         time_left = quiz_state['deadline'] - datetime.datetime.now()
         if time_left.total_seconds() > 0:
             minutes, seconds = divmod(int(time_left.total_seconds()), 60)
-            time_left_str = f"⏳ *زمان باقی‌مانده: {minutes} دقیقه و {seconds} ثانیه*\n\n" # Already Markdown
+            time_left_str = f"⏳ *زمان باقی‌مانده: {minutes} دقیقه و {seconds} ثانیه*\n\n"
         else:
             logger.info(f"Time is up for user {user_id} while trying to send question. Ending quiz.")
             end_quiz(user_id, quiz_state)
@@ -471,14 +469,14 @@ def send_question_to_user(user_id, question_data):
 
     header = ""
     if quiz_state.get('test_type') == 'جامع':
-        header = f"*آزمون جامع* \\- {question_number_display}"
+        header = f"*آزمون جامع* - {question_number_display}"
     else:
-        skill_name = escape_markdown_v2(question_data.get('skill', 'مهارتی'))
-        level_name = escape_markdown_v2(question_data.get('level', ''))
-        header = f"*{skill_name}* \\(سطح {level_name}\\) \\- {question_number_display}"
+        skill_name = escape_markdown(question_data.get('skill', 'مهارتی'))
+        level_name = escape_markdown(question_data.get('level', ''))
+        header = f"*{skill_name}* (سطح {level_name}) - {question_number_display}"
 
-    question_text_escaped = escape_markdown_v2(question_data.get('question_text', 'متن سوال یافت نشد.'))
-    final_text = f"{time_left_str}{header}\n\n{question_text_escaped}" # time_left_str is already escaped or fine
+    question_text_escaped = escape_markdown(question_data.get('question_text', 'متن سوال یافت نشد.'))
+    final_text = f"{time_left_str}{header}\n\n{question_text_escaped}"
 
     sent_message = None
     try:
@@ -494,19 +492,19 @@ def send_question_to_user(user_id, question_data):
             if os.path.exists(full_disk_path):
                 with open(full_disk_path, 'rb') as media_file_obj:
                     if media_type == 'image':
-                        sent_message = bot.send_photo(user_id, photo=media_file_obj, caption=final_text, reply_markup=markup, parse_mode="MarkdownV2")
+                        sent_message = bot.send_photo(user_id, photo=media_file_obj, caption=final_text, reply_markup=markup, parse_mode="Markdown")
                     elif media_type == 'audio':
-                        sent_message = bot.send_audio(user_id, audio=media_file_obj, caption=final_text, reply_markup=markup, parse_mode="MarkdownV2")
+                        sent_message = bot.send_audio(user_id, audio=media_file_obj, caption=final_text, reply_markup=markup, parse_mode="Markdown")
                     elif media_type == 'video':
-                        sent_message = bot.send_video(user_id, video=media_file_obj, caption=final_text, reply_markup=markup, parse_mode="MarkdownV2")
+                        sent_message = bot.send_video(user_id, video=media_file_obj, caption=final_text, reply_markup=markup, parse_mode="Markdown")
                     else:
                         logger.warning(f"Unsupported media type '{media_type}' for direct send. Question {question_data.get('id')}. Sending as text.")
-                        sent_message = bot.send_message(user_id, final_text, reply_markup=markup, parse_mode="MarkdownV2")
+                        sent_message = bot.send_message(user_id, final_text, reply_markup=markup, parse_mode="Markdown")
             else:
                 logger.error(f"Media file NOT FOUND at {full_disk_path} for direct send. Question {question_data.get('id')}. Sending as text.")
-                sent_message = bot.send_message(user_id, final_text, reply_markup=markup, parse_mode="MarkdownV2")
+                sent_message = bot.send_message(user_id, final_text, reply_markup=markup, parse_mode="Markdown")
         else:
-            sent_message = bot.send_message(user_id, final_text, reply_markup=markup, parse_mode="MarkdownV2")
+            sent_message = bot.send_message(user_id, final_text, reply_markup=markup, parse_mode="Markdown")
 
         if sent_message:
             user_quiz_sessions[user_id] = sent_message.message_id
@@ -520,30 +518,34 @@ def send_question_to_user(user_id, question_data):
         if "bot was blocked by the user" in str(e).lower():
             logger.warning(f"Bot was blocked by user {user_id}. Cleaning up quiz state.")
             delete_quiz_state(user_id)
-        elif media_path_db and media_type:
-            logger.info(f"Fallback: Sending question ID {question_data.get('id')} as text only to user {user_id} after media send API error.")
-            try:
-                sent_message = bot.send_message(user_id, final_text, reply_markup=markup, parse_mode="MarkdownV2")
-                if sent_message: user_quiz_sessions[user_id] = sent_message.message_id
-            except Exception as fallback_e:
-                logger.error(f"Error sending fallback text for question ID {question_data.get('id')} to {user_id}: {fallback_e}", exc_info=True)
+        # Fallback for Markdown errors
+        plain_final_text = final_text.replace("*", "").replace("`", "").replace("_", "")
+        try:
+            logger.info(f"Fallback (Markdown error): Sending question ID {question_data.get('id')} as plain text to user {user_id}.")
+            sent_message = bot.send_message(user_id, plain_final_text, reply_markup=markup, parse_mode=None)
+            if sent_message: user_quiz_sessions[user_id] = sent_message.message_id
+        except Exception as fallback_e:
+            logger.error(f"Error sending fallback text for question ID {question_data.get('id')} to {user_id}: {fallback_e}", exc_info=True)
+
     except FileNotFoundError:
         logger.error(f"Media file NOT FOUND at {full_disk_path if 'full_disk_path' in locals() else 'Unknown path'} for direct send. Question {question_data.get('id')}. Fallback to text.")
+        plain_final_text = final_text.replace("*", "").replace("`", "").replace("_", "")
         try:
-            sent_message = bot.send_message(user_id, final_text, reply_markup=markup, parse_mode="MarkdownV2")
+            sent_message = bot.send_message(user_id, plain_final_text, reply_markup=markup, parse_mode=None)
             if sent_message: user_quiz_sessions[user_id] = sent_message.message_id
         except Exception as fallback_e:
             logger.error(f"Error sending fallback text for question ID {question_data.get('id')} after FileNotFoundError: {fallback_e}", exc_info=True)
     except Exception as e:
         media_info_for_log = f"(direct send attempt, path: {full_disk_path if 'full_disk_path' in locals() else 'N/A'})" if media_path_db and media_type else "(text only send attempt)"
         logger.error(f"Unexpected error sending question ID {question_data.get('id')} to {user_id} {media_info_for_log}: {e}", exc_info=True)
-        if media_path_db and media_type:
-            logger.info(f"Fallback: Sending question ID {question_data.get('id')} as text only to user {user_id} after unexpected error.")
-            try:
-                sent_message = bot.send_message(user_id, final_text, reply_markup=markup, parse_mode="MarkdownV2")
-                if sent_message: user_quiz_sessions[user_id] = sent_message.message_id
-            except Exception as fallback_e:
-                logger.error(f"Error sending fallback text for question ID {question_data.get('id')} after unexpected error: {fallback_e}", exc_info=True)
+        plain_final_text = final_text.replace("*", "").replace("`", "").replace("_", "")
+        try:
+            logger.info(f"Fallback (unexpected error): Sending question ID {question_data.get('id')} as plain text to user {user_id}.")
+            sent_message = bot.send_message(user_id, plain_final_text, reply_markup=markup, parse_mode=None)
+            if sent_message: user_quiz_sessions[user_id] = sent_message.message_id
+        except Exception as fallback_e:
+            logger.error(f"Error sending fallback text for question ID {question_data.get('id')} after unexpected error: {fallback_e}", exc_info=True)
+
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('answer_'))
 def handle_answer(call):
@@ -554,8 +556,11 @@ def handle_answer(call):
 
     if not quiz_state:
         bot.answer_callback_query(call.id, "متاسفانه آزمون شما یافت نشد یا منقضی شده است.", show_alert=True)
-        try: bot.edit_message_text("این آزمون دیگر فعال نیست.", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=None, parse_mode=None)
-        except: pass
+        try:
+            # Remove keyboard from the original message
+            bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=None)
+        except telebot.apihelper.ApiTelegramException as e:
+            logger.warning(f"Could not remove reply markup from expired quiz message for user {user_id}: {e}")
         return
 
     if 'deadline' in quiz_state and isinstance(quiz_state['deadline'], datetime.datetime) and datetime.datetime.now() > quiz_state['deadline']:
@@ -604,75 +609,50 @@ def handle_answer(call):
         except: options_list_for_feedback = []
     if not isinstance(options_list_for_feedback, list): options_list_for_feedback = []
 
-    edited_markup = types.InlineKeyboardMarkup(row_width=1)
-    feedback_message_for_user = ""
-    feedback_parse_mode = "MarkdownV2"
+    # --- New logic: Remove keyboard from original message, send feedback as new message ---
+    try:
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=None)
+    except telebot.apihelper.ApiTelegramException as e:
+        # This might happen if the message was media and edit_message_text was (incorrectly) used before
+        logger.warning(f"Could not remove reply markup from message {call.message.message_id} for user {user_id}. Error: {e}")
+        # If it's media, try to edit caption's reply markup
+        if call.message.caption:
+             try:
+                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=None)
+             except telebot.apihelper.ApiTelegramException as e_caption:
+                logger.warning(f"Could not remove reply markup from media caption for user {user_id}. Error: {e_caption}")
+
+
+    feedback_text = ""
+    feedback_parse_mode = None
 
     if is_premium_user:
-        for i, option_text_raw in enumerate(options_list_for_feedback):
-            option_text = escape_markdown_v2(str(option_text_raw))
-            prefix = ""
-            if i == chosen_option_index:
-                prefix = "✔️ "
-                if is_correct: prefix = "✅ "
-                else: prefix = "❌ "
-            elif i == current_question.get('correct_answer'):
-                prefix = "🎯 "
-            edited_markup.add(types.InlineKeyboardButton(f"{prefix}{option_text}", callback_data=f"answered_{current_question['id']}_{i}"))
-
-        correct_answer_text = ""
+        feedback_text = "✅ *پاسخ صحیح*" if is_correct else "❌ *پاسخ شما اشتباه بود*"
         correct_answer_idx = current_question.get('correct_answer')
         if correct_answer_idx is not None and 0 <= correct_answer_idx < len(options_list_for_feedback):
-            correct_answer_text = escape_markdown_v2(str(options_list_for_feedback[correct_answer_idx]))
+            correct_answer_text_raw = str(options_list_for_feedback[correct_answer_idx])
+            feedback_text += f"\nپاسخ صحیح: *{escape_markdown(correct_answer_text_raw)}*"
 
-        feedback_message_for_user = escape_markdown_v2("✅ پاسخ صحیح") if is_correct else escape_markdown_v2(f"❌ پاسخ شما اشتباه بود. پاسخ صحیح: {correct_answer_text}")
+        # Show chosen option with indicator
+        chosen_option_text_raw = str(options_list_for_feedback[chosen_option_index])
+        chosen_indicator = "✅" if is_correct else "❌"
+        feedback_text += f"\nپاسخ شما: {chosen_indicator} *{escape_markdown(chosen_option_text_raw)}*"
+        feedback_parse_mode = "Markdown"
     else: # کاربر عادی
-        for i, option_text_raw in enumerate(options_list_for_feedback):
-            option_text = str(option_text_raw) # بدون escape برای متن ساده
-            prefix = "✔️ " if i == chosen_option_index else ""
-            edited_markup.add(types.InlineKeyboardButton(f"{prefix}{option_text}", callback_data=f"answered_{current_question['id']}_{i}"))
-        feedback_message_for_user = "پاسخ شما ثبت شد."
-        feedback_parse_mode = None # ارسال به صورت متن ساده
+        feedback_text = "پاسخ شما ثبت شد."
+        feedback_parse_mode = None
 
-    # بازسازی متن سوال برای ویرایش پیام
-    current_q_idx_display = quiz_state.get('current_question_index', 0)
-    total_q_in_quiz_display = len(quiz_state.get('questions', []))
-    q_num_md = f"سوال *{current_q_idx_display + 1}* از *{total_q_in_quiz_display}*"
-
-    header_md = ""
-    if quiz_state.get('test_type') == 'جامع':
-        header_md = f"*آزمون جامع* \\- {q_num_md}"
-    else:
-        skill_md = escape_markdown_v2(current_question.get('skill', 'مهارتی'))
-        level_md = escape_markdown_v2(current_question.get('level', ''))
-        header_md = f"*{skill_md}* \\(سطح {level_md}\\) \\- {q_num_md}"
-
-    question_text_md = escape_markdown_v2(current_question.get('question_text', ''))
-
-    # اگر کاربر عادی است، feedback_message_for_user از قبل متن ساده است.
-    # اگر کاربر ویژه است، feedback_message_for_user از قبل برای MarkdownV2 escape شده.
-    edited_message_text_md = f"{header_md}\n\n{question_text_md}\n\n"
-    if is_premium_user:
-        edited_message_text_md += f"*{feedback_message_for_user}*" # بولد کردن فیدبک کاربر ویژه
-    else:
-        edited_message_text_md = f"{feedback_message_for_user}\n\n{header_md}\n\n{question_text_md}" # پیام ساده اول، سپس سوال
-
-    active_quiz_message_id = user_quiz_sessions.get(user_id)
-    if active_quiz_message_id == call.message.message_id:
-        try:
-            bot.edit_message_text(text=edited_message_text_md,
-                                  chat_id=call.message.chat.id,
-                                  message_id=call.message.message_id,
-                                  reply_markup=edited_markup, parse_mode=feedback_parse_mode)
-        except telebot.apihelper.ApiTelegramException as e:
-            if "message is not modified" not in str(e).lower():
-                logger.error(f"API Error editing answer feedback for user {user_id}, q_id {current_question.get('id')}: {e}", exc_info=True)
-    else:
-        logger.warning(f"Mismatch in message_id for editing answer for user {user_id}. Expected {active_quiz_message_id}, got {call.message.message_id}")
-        try:
-            bot.send_message(user_id, edited_message_text_md, reply_markup=edited_markup, parse_mode=feedback_parse_mode)
-        except Exception as e_send:
-             logger.error(f"Error sending new feedback message for user {user_id}: {e_send}", exc_info=True)
+    try:
+        bot.send_message(user_id, feedback_text, parse_mode=feedback_parse_mode)
+    except telebot.apihelper.ApiTelegramException as e_fb:
+        logger.error(f"Error sending feedback message to user {user_id}: {e_fb}", exc_info=True)
+        if feedback_parse_mode == "Markdown": # Try plain text fallback
+            plain_feedback_text = feedback_text.replace("*", "").replace("`", "")
+            try:
+                bot.send_message(user_id, plain_feedback_text, parse_mode=None)
+            except Exception as e_fb_plain:
+                 logger.error(f"Error sending plain text feedback to user {user_id}: {e_fb_plain}", exc_info=True)
+    # --- End of new logic for feedback ---
 
     bot.answer_callback_query(call.id)
     quiz_state['current_question_index'] += 1
@@ -719,17 +699,17 @@ def end_quiz(user_id, quiz_state):
         logger.error(f"Failed to save test result for user {user_id}: {e}", exc_info=True)
 
     percentage = round((score / total_questions) * 100) if total_questions > 0 else 0
-    user_level_determined = get_level_from_percentage(percentage) # No need to escape here, it's for internal use
+    user_level_determined = get_level_from_percentage(percentage)
 
-    summary_text_markdown = (f"🎉 *آزمون شما به پایان رسید\\!*\n\n"
+    summary_text_md = (f"🎉 *آزمون شما به پایان رسید!*\n\n"
                              f"تعداد سوالات: `{total_questions}`\n"
                              f"پاسخ‌های صحیح: `{score}`\n"
                              f"درصد موفقیت: *{percentage}%*\n"
-                             f"سطح تقریبی شما: *{escape_markdown_v2(user_level_determined)}*\n"
+                             f"سطح تقریبی شما: *{escape_markdown(user_level_determined)}*\n"
                              f"مدت زمان آزمون: *{minutes} دقیقه و {seconds} ثانیه*")
 
     if quiz_state.get('test_type') == 'جامع' and 'answer_details' in quiz_state and quiz_state['answer_details']:
-        analysis_text_markdown = "\n\n📊 *تحلیل عملکرد شما بر اساس مهارت \\(در آزمون جامع\\):*\n"
+        analysis_text_md = "\n\n📊 *تحلیل عملکرد شما بر اساس مهارت (در آزمون جامع):*\n"
         skill_stats = {skill: {"correct": 0, "total": 0} for skill in Config.QUIZ_SKILLS}
 
         for detail in quiz_state['answer_details']:
@@ -742,26 +722,33 @@ def end_quiz(user_id, quiz_state):
         for skill_name, data in skill_stats.items():
             if data['total'] > 0:
                 skill_percentage = round((data['correct'] / data['total']) * 100)
-                performance_lines.append(f"\\- *{escape_markdown_v2(skill_name)}*: {skill_percentage}% \\({data['correct']} از {data['total']}\\)")
+                performance_lines.append(f"- *{escape_markdown(skill_name)}*: {skill_percentage}% ({data['correct']} از {data['total']})")
 
         if performance_lines:
-            summary_text_markdown += analysis_text_markdown + "\n".join(performance_lines)
+            summary_text_md += analysis_text_md + "\n".join(performance_lines)
 
     try:
-        bot.send_message(user_id, summary_text_markdown, parse_mode="MarkdownV2")
+        bot.send_message(user_id, summary_text_md, parse_mode="Markdown")
     except telebot.apihelper.ApiTelegramException as e:
-        logger.error(f"Error sending quiz summary to {user_id}: {e}", exc_info=True)
+        logger.error(f"Error sending quiz summary to {user_id} (Markdown): {e}", exc_info=True)
+        plain_summary_text = summary_text_md.replace("*", "").replace("`", "")
+        bot.send_message(user_id, plain_summary_text, parse_mode=None)
 
-    suggestion_text_markdown = ""
+
+    suggestion_text_md = ""
     if percentage <= 35:
-        suggestion_text_markdown = "برای تقویت پایه زبان خود، پیشنهاد می‌کنیم در دوره‌های آموزشی سطح مقدماتی \\(A1/A2\\) ما شرکت کنید یا منابع مرتبط را مطالعه نمایید\\."
+        suggestion_text_md = "برای تقویت پایه زبان خود، پیشنهاد می‌کنیم در دوره‌های آموزشی سطح مقدماتی (A1/A2) ما شرکت کنید یا منابع مرتبط را مطالعه نمایید."
     elif percentage <= 75:
-        suggestion_text_markdown = "عملکرد خوبی داشتید\\! برای رسیدن به سطوح بالاتر، تمرین مستمر روی مهارت‌های مختلف را فراموش نکنید\\."
-    if suggestion_text_markdown:
+        suggestion_text_md = "عملکرد خوبی داشتید! برای رسیدن به سطوح بالاتر، تمرین مستمر روی مهارت‌های مختلف را فراموش نکنید."
+    if suggestion_text_md:
         try:
-            bot.send_message(user_id, suggestion_text_markdown, parse_mode="MarkdownV2")
+            # This is a static message, ensure it's Markdown V1 compatible or send as plain.
+            # For now, assuming it's simple enough for V1.
+            bot.send_message(user_id, suggestion_text_md, parse_mode="Markdown")
         except telebot.apihelper.ApiTelegramException as e:
-             logger.error(f"Error sending suggestion to {user_id}: {e}", exc_info=True)
+             logger.error(f"Error sending suggestion to {user_id} (Markdown): {e}", exc_info=True)
+             bot.send_message(user_id, suggestion_text_md.replace("*",""), parse_mode=None)
+
 
     delete_quiz_state(user_id)
     if user_id in user_quiz_sessions:
@@ -799,9 +786,6 @@ def handle_cancel_support(message):
     send_main_keyboard(user_id)
 
 def forward_support_message_to_admins(user_id, first_name, username, message_id_to_forward=None, text_content=None, media_path_for_admin_info=None):
-    # برای این پیام، از فرمت ساده و بدون Markdown استفاده می‌کنیم تا دقیقاً شبیه نمونه درخواستی باشد.
-    # html.escape برای نمایش در لاگ‌ها خوب است، اما برای پیام به ادمین، متن خام را می‌فرستیم.
-
     user_display_plain = f"{first_name or ''} (@{username or 'N/A'}, ID: {user_id})"
     admin_notification_text = f"یک پیام پشتیبانی جدید از کاربر {user_display_plain} دریافت شد."
 
@@ -812,7 +796,7 @@ def forward_support_message_to_admins(user_id, first_name, username, message_id_
     for admin_id in Config.ADMIN_IDS:
         try:
             logger.info(f"Admin Supp Msg (Plain Text): {admin_notification_text}")
-            bot.send_message(admin_id, admin_notification_text, parse_mode=None) # ارسال به صورت متن ساده
+            bot.send_message(admin_id, admin_notification_text, parse_mode=None)
             if message_id_to_forward and not media_path_for_admin_info:
                 bot.forward_message(admin_id, user_id, message_id_to_forward)
         except telebot.apihelper.ApiTelegramException as e:
@@ -896,18 +880,17 @@ def admin_panel_command(message):
 
 def send_admin_response_to_user(user_telegram_id, admin_response_text):
     try:
-        # ادمین ممکن است بخواهد از Markdown استفاده کند، پس اجازه می‌دهیم.
-        # متن ادمین باید برای MarkdownV2 معتبر باشد یا خودش escape کند.
-        # برای سادگی، می‌توانیم اینجا هم escape کنیم یا فرض کنیم ادمین آگاه است.
-        # فعلا با escape ارسال می‌کنیم تا از خطای کاربر ادمین جلوگیری شود.
-        escaped_response = escape_markdown_v2(admin_response_text)
+        # Admin might use Markdown, so we try to send as Markdown (V1)
+        # We assume admin is aware or we escape it.
+        # For now, we will escape it to prevent errors from admin input.
+        escaped_response = escape_markdown(admin_response_text)
         bot.send_message(user_telegram_id,
                          f"✉️ *پاسخ از طرف پشتیبانی:*\n\n{escaped_response}",
-                         parse_mode='MarkdownV2')
+                         parse_mode='Markdown')
         logger.info(f"Admin response sent to user {user_telegram_id}.")
         return True
     except telebot.apihelper.ApiTelegramException as e:
-        logger.error(f"Failed to send MarkdownV2 admin response to user {user_telegram_id}: {e}", exc_info=True)
+        logger.error(f"Failed to send Markdown admin response to user {user_telegram_id}: {e}", exc_info=True)
         try:
             bot.send_message(user_telegram_id, f"پاسخ از طرف پشتیبانی:\n\n{admin_response_text}", parse_mode=None)
             logger.info(f"Fallback: Admin response sent as plain text to user {user_telegram_id}.")
@@ -921,17 +904,17 @@ def send_admin_response_to_user(user_telegram_id, admin_response_text):
 
 def send_payment_confirmation(user_id, duration_days, amount_paid=None, currency="تومان"):
     try:
-        text_md = f"✅ اشتراک ویژه شما با موفقیت فعال شد\\!\n"
-        if amount_paid: # این بخش دیگر در جریان کارت به کارت فعلی استفاده نمی‌شود، اما تابع باقی می‌ماند
-             text_md += f"مبلغ دریافتی: `{amount_paid:,}` {escape_markdown_v2(currency)}\\.\n"
-        text_md += f"مدت اعتبار: *{duration_days}* روز\\."
+        text_md = f"✅ اشتراک ویژه شما با موفقیت فعال شد!\n"
+        if amount_paid:
+             text_md += f"مبلغ دریافتی: `{amount_paid:,}` {escape_markdown(currency)}.\n"
+        text_md += f"مدت اعتبار: *{duration_days}* روز."
 
-        bot.send_message(user_id, text_md, parse_mode='MarkdownV2')
+        bot.send_message(user_id, text_md, parse_mode='Markdown')
         send_main_keyboard(user_id, "اشتراک شما فعال شد! از امکانات ویژه لذت ببرید.")
         logger.info(f"Manual payment confirmation sent to user {user_id} for {duration_days} days.")
         return True
     except telebot.apihelper.ApiTelegramException as e:
-        logger.error(f"Failed to send payment confirmation (MarkdownV2) to {user_id}: {e}", exc_info=True)
+        logger.error(f"Failed to send payment confirmation (Markdown) to {user_id}: {e}", exc_info=True)
         plain_text = f"✅ اشتراک ویژه شما با موفقیت فعال شد!\n"
         if amount_paid: plain_text += f"مبلغ دریافتی: {amount_paid:,} {currency}.\n"
         plain_text += f"مدت اعتبار: {duration_days} روز."

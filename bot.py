@@ -321,7 +321,8 @@ def start_quiz_logic(user_id, from_user_obj, questions, test_type, level_display
 
     if user_id in user_quiz_sessions: del user_quiz_sessions[user_id]
 
-    bot.send_message(user_id, escape_markdown_v2("⚠️ *توجه:* پاسخ شما پس از انتخاب قابل ویرایش نیست."), parse_mode='MarkdownV2')
+    # متن به درستی برای MarkdownV2 فرمت‌بندی شده و فقط کاراکترهای لازم escape می‌شوند
+    bot.send_message(user_id, "⚠️ *توجه:* پاسخ شما پس از انتخاب قابل ویرایش نیست\\.", parse_mode='MarkdownV2')
     time.sleep(0.5)
     send_question_to_user(user_id, questions[0])
     return True
@@ -344,9 +345,12 @@ def handle_general_quiz(message):
                 remaining_seconds = cooldown_seconds - time_since_last_test.total_seconds()
                 remaining_hours = int(remaining_seconds // 3600)
                 remaining_minutes = int((remaining_seconds % 3600) // 60)
-                text = (f"شما به تازگی در آزمون جامع شرکت کرده‌اید. لطفاً *{remaining_hours}* ساعت و *{remaining_minutes}* دقیقه دیگر دوباره امتحان کنید.\n\n"
-                        f"💎 کاربران ویژه محدودیتی برای شرکت در آزمون ندارند.")
-                bot.send_message(user_id, escape_markdown_v2(text), parse_mode="MarkdownV2")
+                # متن به درستی برای MarkdownV2 فرمت‌بندی شده و فقط کاراکترهای لازم escape می‌شوند
+                text_mdv2 = (\
+                    f"شما به تازگی در آزمون جامع شرکت کرده‌اید\\. لطفاً *{remaining_hours}* ساعت و *{remaining_minutes}* دقیقه دیگر دوباره امتحان کنید\\.\n\n"\
+                    f"💎 کاربران ویژه محدودیتی برای شرکت در آزمون ندارند\\."\
+                )
+                bot.send_message(user_id, text_mdv2, parse_mode="MarkdownV2")
                 return
     try:
         questions = get_comprehensive_questions(Config.MAX_QUESTIONS)
